@@ -1,0 +1,49 @@
+# Build directories
+/build/
+/cmake-build-*/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+cmake_install.cmake
+compile_commands.json
+Makefile
+build.ninja
+.ninja_deps
+.ninja_log
+install_manifest.txt
+
+# Testing outputs
+Testing/
+
+# Compiled binaries/libraries
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.lib
+*.exe
+
+# Debug symbols / profiling
+*.dSYM/
+*.pdb
+*.gcno
+*.gcda
+*.profraw
+*.profdata
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store
