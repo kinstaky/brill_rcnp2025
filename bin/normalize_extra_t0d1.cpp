@@ -39,10 +39,12 @@ inline void GetEnergy(
 	second_energy = strip[0] < strip[1] ? energy[1] : energy[0];
 }
 
-void FitNonLinear(
+void FitPiecewise(
 	TGraph *gfs101,
 	brill::T0D1ExtraNormalizeParameters &extra_parameters
 ) {
+	extra_parameters.piecewise.pol2.resize(4);
+	extra_parameters.piecewise.range.resize(4);
 	// piecewise fit fs101
 	TF1 ffs101a("ffs101a", "pol1", 0, 6000);
 	gfs101[0].Fit(&ffs101a, "R+ ROB=0.9");
@@ -53,30 +55,28 @@ void FitNonLinear(
 	TF1 ffs101c1("ffs101c1", "pol2", 5900, 50000);
 	gfs101[2].Fit(&ffs101c1, "R+");
 
-	const double range[4][4] = {
-		-1.0, -1.0, 0.0, 3900.0,
-		-1.0, -1.0, 0.0, 5900.0,
-		0.0, 5900.0, 5900.0, -1.0,
-		5900.0, 50000.0, 5900.0, -1.0
+	const brill::Range range[4] = {
+		{-1.0, -1.0, 0.0, 3900.0},
+		{-1.0, -1.0, 0.0, 5900.0},
+		{0.0, 5900.0, 5900.0, -1.0},
+		{5900.0, 50000.0, 5900.0, -1.0}
 	};
 	for (int i = 0; i < 4; ++i) {
-		extra_parameters.non_linear.xmin[i] = range[i][0];
-		extra_parameters.non_linear.xmax[i] = range[i][1];
-		extra_parameters.non_linear.ymin[i] = range[i][2];
-		extra_parameters.non_linear.ymax[i] = range[i][3];
+		extra_parameters.piecewise.range[i] = range[i];
 	}
-	extra_parameters.non_linear.p0[0] = ffs101a.GetParameter(0);
-	extra_parameters.non_linear.p1[0] = ffs101a.GetParameter(1);
-	extra_parameters.non_linear.p2[0] = 0.0;
-	extra_parameters.non_linear.p0[1] = ffs101b.GetParameter(0);
-	extra_parameters.non_linear.p1[1] = ffs101b.GetParameter(1);
-	extra_parameters.non_linear.p2[1] = 0.0;
-	extra_parameters.non_linear.p0[2] = ffs101c0.GetParameter(0);
-	extra_parameters.non_linear.p1[2] = ffs101c0.GetParameter(1);
-	extra_parameters.non_linear.p2[2] = ffs101c0.GetParameter(2);
-	extra_parameters.non_linear.p0[3] = ffs101c1.GetParameter(0);
-	extra_parameters.non_linear.p1[3] = ffs101c1.GetParameter(1);
-	extra_parameters.non_linear.p2[3] = ffs101c1.GetParameter(2);
+
+	extra_parameters.piecewise.pol2[0].p0 = ffs101a.GetParameter(0);
+	extra_parameters.piecewise.pol2[0].p1 = ffs101a.GetParameter(1);
+	extra_parameters.piecewise.pol2[0].p2 = 0.0;
+	extra_parameters.piecewise.pol2[1].p0 = ffs101b.GetParameter(0);
+	extra_parameters.piecewise.pol2[1].p1 = ffs101b.GetParameter(1);
+	extra_parameters.piecewise.pol2[1].p2 = 0.0;
+	extra_parameters.piecewise.pol2[2].p0 = ffs101c0.GetParameter(0);
+	extra_parameters.piecewise.pol2[2].p1 = ffs101c0.GetParameter(1);
+	extra_parameters.piecewise.pol2[2].p2 = ffs101c0.GetParameter(2);
+	extra_parameters.piecewise.pol2[3].p0 = ffs101c1.GetParameter(0);
+	extra_parameters.piecewise.pol2[3].p1 = ffs101c1.GetParameter(1);
+	extra_parameters.piecewise.pol2[3].p2 = ffs101c1.GetParameter(2);
 }
 
 void FillStripLine(
@@ -141,14 +141,14 @@ void LineNormalize(
 		}
 		chain.GetEntry(entry);
 		if (fn == 1 && bn == 1 && fs[0] == 101) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
 			if (be < 3900) gfs101[0].AddPoint(rfe[0], be);
 			else if (be < 5900) gfs101[1].AddPoint(rfe[0], be);
 			else gfs101[2].AddPoint(rfe[0], be);
 		} else if (fn == 1 && bn == 2 && fs[0] != 101 && AreStrips(bs, 104, 109)) {
 			double be104, be109;
 			GetEnergy(bs, rbe, be104, be109);
-			double fe = NormEnergy(parameters, 0, fs[0], rfe[0]);
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
 			hbs104.Fill(be104 - be109);
 			gbs104n.AddPoint(be104, be109, fe);
 			if (fabs(be104-be109) < 500.0) {
@@ -157,7 +157,7 @@ void LineNormalize(
 				pbs104.push_back(point);
 			}
 		} else if (fn == 2 && bn == 1 && bs[0] != 104 && bs[0] != 109) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
 			if (AreStrips(fs, 49, 51)) {
 				double fe49, fe51;
 				GetEnergy(fs, rfe, fe49, fe51);
@@ -194,7 +194,7 @@ void LineNormalize(
 	printf("\b\b\b\b100%%\n");
 
 	// fit non-linear fs101
-	FitNonLinear(gfs101, extra_parameters);
+	FitPiecewise(gfs101, extra_parameters);
 	std::cout << "---------------------------------------------------------\n";
 
 	// PCA
@@ -241,6 +241,12 @@ void LineNormalize(
 	gbs104.Write("gbs104");
 }
 
+inline bool Adjacent104Or109(
+	const int strip
+) {
+	return strip == 103 || strip == 105 || strip == 108 || strip == 110;
+}
+
 
 void LineEstimate(
 	TChain &chain,
@@ -258,10 +264,15 @@ void LineEstimate(
 
 	TGraph gfs101;
 	TH1F hfs101("hdfs101", "Front strip 101 difference", 1000, -5000, 5000);
+	TH1F hfs101a("hdfs101a", "Front strip 101a difference", 1000, -5000, 5000);
+	TH1F hfs101b("hdfs101b", "Front strip 101b difference", 1000, -5000, 5000);
+	TH1F hfs101c("hdfs101c", "Front strip 101c difference", 1000, -5000, 5000);
+	TH1F hfs101d("hdfs101d", "Front strip 101d difference", 1000, -5000, 5000);
 	TH1F hfs50("hdfs50", "Front strip 50 distance", 200, 0, 2000);
 	TH1F hfs94("hdfs94", "Front strip 94 distance", 200, 0, 2000);
-	TH1F hfs120("hdfs120", "Front strip 120 distance", 200, 0, 2000);
-	TH1F hbs104("hdbs104", "Back strip 104 distance", 200, 0, 2000);
+	TH1F hfs120("hdfs120", "Front strip 120 distance", 200, 0, 000);
+	TH1F hbs104("hdbs104", "Back strip 104+109 distance", 200, 0, 2000);
+	TH1F hbs104a("hdbs104a", "Back strip 104+109 adjacent distance", 200, 0, 2000);
 
 	long long total = chain.GetEntries();
 	long long last_percentage = 0;
@@ -275,35 +286,61 @@ void LineEstimate(
 		}
 		chain.GetEntry(entry);
 		if (fn == 1 && bn == 1 && fs[0] == 101) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
 			double fe = 0.0;
 			if (be < 3900) {
-				fe = extra.non_linear.p0[0] + extra.non_linear.p1[0] * rfe[0];
+				fe = extra.piecewise.pol2[0].p0 + extra.piecewise.pol2[0].p1 * rfe[0];
+				hfs101a.Fill(fe-be);
 			} else if (be < 5900) {
-				fe = extra.non_linear.p0[1] + extra.non_linear.p1[1] * rfe[0];
+				fe = extra.piecewise.pol2[1].p0 + extra.piecewise.pol2[1].p1 * rfe[0];
+				hfs101b.Fill(fe-be);
 			} else if (raw_event.front_integral[0] < 5900) {
-				fe = extra.non_linear.p0[2]
-					+ extra.non_linear.p1[2] * rfe[0]
-					+ extra.non_linear.p2[2] * rfe[0] * rfe[0];
+				fe = extra.piecewise.pol2[2].p0
+					+ extra.piecewise.pol2[2].p1 * rfe[0]
+					+ extra.piecewise.pol2[2].p2 * rfe[0] * rfe[0];
+				hfs101c.Fill(fe-be);
 			} else {
-				fe = extra.non_linear.p0[3]
-					+ extra.non_linear.p1[3] * rfe[0]
-					+ extra.non_linear.p2[3] * rfe[0] * rfe[0];
+				fe = extra.piecewise.pol2[3].p0
+					+ extra.piecewise.pol2[3].p1 * rfe[0]
+					+ extra.piecewise.pol2[3].p2 * rfe[0] * rfe[0];
+				hfs101d.Fill(fe-be);
 			}
 			gfs101.AddPoint(fe, be);
 			hfs101.Fill(fe-be);
 		} else if (fn == 1 && bn == 2 && fs[0] != 101 && AreStrips(bs, 104, 109)) {
 			double be104, be109;
 			GetEnergy(bs, rbe, be104, be109);
-			double fe = NormEnergy(parameters, 0, fs[0], rfe[0]);
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
 			Eigen::Vector3d point(be104, be109, fe);
 			hbs104.Fill(brill::PointLineDistance(
 				point,
 				extra.pca["bs104"].mean,
 				extra.pca["bs104"].direction
 			));
+		} else if (fn == 1 && bn == 3 && AreStrips(bs, 104, 109) && Adjacent104Or109(bs[2])) {
+			double be104, be109;
+			GetEnergy(bs, rbe, be104, be109);
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
+			double adjacent_be = parameters.NormEnergy(1, bs[2], rbe[2]);
+			Eigen::Vector3d point(be104, be109, fe-adjacent_be);
+			hbs104a.Fill(brill::PointLineDistance(
+				point,
+				extra.pca["bs104"].mean,
+				extra.pca["bs104"].direction
+			));
+		} else if (fn == 1 && bn == 3 && AreStrips(bs+1, 104, 109) && Adjacent104Or109(bs[0])) {
+			double be104, be109;
+			GetEnergy(bs+1, rbe+1, be104, be109);
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
+			double adjacent_be = parameters.NormEnergy(1, bs[0], rbe[0]);
+			Eigen::Vector3d point(be104, be109, fe-adjacent_be);
+			hbs104a.Fill(brill::PointLineDistance(
+				point,
+				extra.pca["bs104"].mean,
+				extra.pca["bs104"].direction
+			));
 		} else if (fn == 2 && bn == 1 && bs[0] != 104 && bs[0] != 109) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
 			if (AreStrips(fs, 49, 51)) {
 				double fe49, fe51;
 				GetEnergy(fs, rfe, fe49, fe51);
@@ -338,10 +375,15 @@ void LineEstimate(
 
 	gfs101.Write("gfs101n");
 	hfs101.Write();
+	hfs101a.Write();
+	hfs101b.Write();
+	hfs101c.Write();
+	hfs101d.Write();
 	hfs50.Write();
 	hfs94.Write();
 	hfs120.Write();
 	hbs104.Write();
+	hbs104a.Write();
 }
 
 
@@ -376,7 +418,7 @@ void PlaneNormalize(
 		}
 		chain.GetEntry(entry);
 		if (fn == 2 && bn == 1) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
 			if (AreStrips(fs, 49, 51)) {
 				double fe49, fe51;
 				GetEnergy(fs, rfe, fe49, fe51);
@@ -486,7 +528,7 @@ void PlaneEstimate(
 		}
 		chain.GetEntry(entry);
 		if (fn == 2 && bn == 1) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
 			if (AreStrips(fs, 49, 51)) {
 				double fe49, fe51;
 				GetEnergy(fs, rfe, fe49, fe51);
@@ -605,7 +647,7 @@ void Classify(
 		bool valid = false;
 		if (fn == 2 && bn == 1) {
 			side = 0;
-			opposite_energy = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			opposite_energy = parameters.NormEnergy(1, bs[0], rbe[0]);
 			opposite_strip = bs[0];
 			if (AreStrips(fs, 49, 51)) {
 				strip[0] = 49;
@@ -653,7 +695,6 @@ void Classify(
 				if (line_distance < 600.0) {
 					type = 1;
 					flag |= 1;
-					++num_fs94[1];
 				Eigen::Vector3d point(energy[0], energy[1], opposite_energy);
 				} else {
 					plane_distance[0] = brill::PointPlaneDistance(
@@ -688,7 +729,6 @@ void Classify(
 				if (line_distance < 400.0) {
 					type = 1;
 					flag |= 1;
-					++num_fs120[1];
 				} else {
 					plane_distance[0] = brill::PointPlaneDistance(
 						point, extra.pca["fs120p0"].mean, extra.pca["fs120p0"].direction
@@ -699,7 +739,6 @@ void Classify(
 					if (plane_distance[0] < 400.0 && plane_distance[1] < 400.0) {
 						type = plane_distance[0] < plane_distance[1] ? 2 : 3;
 						flag |= 6;
-						++num_fs120[2];
 					} else if (plane_distance[0] < 500.0) {
 						type = 2;
 					} else if (plane_distance[1] < 500.0) {
@@ -714,7 +753,7 @@ void Classify(
 			strip[0] = 104;
 			strip[1] = 109;
 			opposite_strip = bs[0];
-			opposite_energy = NormEnergy(parameters, 0, fs[0], rfe[0]);
+			opposite_energy = parameters.NormEnergy(0, fs[0], rfe[0]);
 			GetEnergy(bs, rbe, energy[0], energy[1]);
 
 			++num_bs104[0];
@@ -804,11 +843,11 @@ int main(int argc, char **argv) {
 	}
 
 	brill::AppConfig config;
-	if (brill::LoadConfig(result["config"].as<std::string>(), config)) {
+	if (config.Load(result["config"].as<std::string>())) {
 		return 1;
 	}
 	if (result.count("trigger")) {
-		config.trigger = result["trigger"].as<std::string>();
+		config.root.trigger = result["trigger"].as<std::string>();
 	}
 	const int run = result["run"].as<int>();
 	const int end_run = result.count("end-run") ? result["end-run"].as<int>() : run;
@@ -817,8 +856,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	const brill::SiliconDetectorConfig *detector =
-		brill::FindDetectorConfig(config, "t0d1");
+	const brill::SiliconDetectorConfig *detector = config.FindDetector("t0d1");
 	if (!detector) {
 		std::cerr << "Error: Detector t0d1 is not found in config.\n";
 		return 1;
@@ -827,12 +865,12 @@ int main(int argc, char **argv) {
 	TChain chain("tree");
 	int added_runs = 0;
 	for (int current_run = run; current_run <= end_run; ++current_run) {
-		if (brill::IsJumpRun(config, current_run)) continue;
+		if (config.IsJumpRun(current_run)) continue;
 		++added_runs;
 		chain.Add(TString::Format(
 			"%s/t0d1_%s%04d.root",
-			brill::JoinPath(config.workspace, config.paths.ingot).c_str(),
-			brill::TriggerInfix(config.trigger).c_str(),
+			brill::JoinPath(config.root.workspace, config.paths.ingot).c_str(),
+			brill::TriggerInfix(config.root.trigger).c_str(),
 			current_run
 		));
 	}
@@ -843,24 +881,15 @@ int main(int argc, char **argv) {
 	brill::DssdEvent raw_event;
 	brill::SetupInput(&chain, raw_event);
 
-	brill::DssdNormalizeParameters parameters;
-	parameters.front_strips = detector->front_strips;
-	parameters.back_strips = detector->back_strips;
+	brill::DssdNormalizeParameters parameters(detector->front_strips, detector->back_strips);
 
-	std::string normalize_dir = brill::JoinPath(config.workspace, config.paths.normalize);
-	TString front_path = TString::Format(
-		"%s/t0d1_front_%04d.txt",
+	std::string normalize_dir = brill::JoinPath(config.root.workspace, config.paths.normalize);
+	TString parameter_path = TString::Format(
+		"%s/t0d1_%04d.txt",
 		normalize_dir.c_str(),
 		run
 	);
-	TString back_path = TString::Format(
-		"%s/t0d1_back_%04d.txt",
-		normalize_dir.c_str(),
-		run
-	);
-	if (brill::ReadDssdNormalizeParameters(
-		front_path.Data(), back_path.Data(), parameters
-	)) {
+	if (parameters.Read(parameter_path.Data())) {
 		std::cerr << "Error: Read normalize parameters failed.\n";
 		return 1;
 	}
@@ -868,7 +897,7 @@ int main(int argc, char **argv) {
 	TString output_path = TString::Format(
 		"%s/t0d1_%sextra_%04d_%04d.root",
 		normalize_dir.c_str(),
-		brill::TriggerInfix(config.trigger).c_str(),
+		brill::TriggerInfix(config.root.trigger).c_str(),
 		run,
 		end_run
 	);
@@ -887,10 +916,7 @@ int main(int argc, char **argv) {
 		normalize_dir.c_str(),
 		run
 	);
-	if (brill::WriteExtraNormalizeParameters(
-		t0d1_extra_path.Data(),
-		extra_parameters
-	)) {
+	if (extra_parameters.Write(t0d1_extra_path.Data())) {
 		std::cerr << "Error: write t0d1_extra parameter file "
 			<< t0d1_extra_path.Data() << " failed." << std::endl;
 	}

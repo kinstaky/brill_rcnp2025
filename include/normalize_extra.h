@@ -1,5 +1,4 @@
-#ifndef __NORMALIZE_EXTRA_H__
-#define __NORMALIZE_EXTRA_H__
+#pragma once
 
 #include <map>
 #include <string>
@@ -8,44 +7,58 @@
 
 namespace brill {
 
-struct NonLinearParameter {
-	double p0[4], p1[4], p2[4];
-	double xmin[4], xmax[4], ymin[4], ymax[4];
+
+struct Pol2Parameter {
+	double p0, p1, p2;
 };
 
-std::istream &operator>>(std::istream &in, NonLinearParameter &non_linear);
-std::ostream &operator<<(std::ostream &out, const NonLinearParameter &non_linear);
+struct Range {
+	double xmin, xmax, ymin, ymax;
+};
 
-struct ExtraNormalizeParameters {
+std::istream& operator>>(std::istream &is, Pol2Parameter &parameter);
+std::ostream& operator<<(std::ostream &os, const Pol2Parameter &parameter);
+
+struct PiecewiseParameter {
+	std::vector<Pol2Parameter> pol2;
+	std::vector<Range> range;
+};
+
+std::istream& operator>>(std::istream &is, PiecewiseParameter &parameter);
+std::ostream& operator<<(std::ostream &os, const PiecewiseParameter &parameter);
+
+
+class ExtraNormalizeParameters {
+public:
+	virtual ~ExtraNormalizeParameters() = default;
+
+	virtual int Read(const std::string &path) = 0;
+	virtual int Write(const std::string &path) const = 0;
+
 	std::map<std::string, PCAParameter> pca;
+	std::map<std::string, Pol2Parameter> pol2;
 };
 
-struct T0D1ExtraNormalizeParameters: public ExtraNormalizeParameters {
-	NonLinearParameter non_linear;
+class T0D1ExtraNormalizeParameters: public ExtraNormalizeParameters {
+public:
+	virtual ~T0D1ExtraNormalizeParameters() = default;
+
+	virtual int Read(const std::string &path) override;
+	virtual int Write(const std::string &path) const override;
+
+	PiecewiseParameter piecewise;
 };
 
-struct T0D2ExtraNormalizeParameters: public ExtraNormalizeParameters {};
+class T0D2ExtraNormalizeParameters: public ExtraNormalizeParameters {
+public:
+	virtual ~T0D2ExtraNormalizeParameters() = default;
 
-int ReadExtraNormalizeParameters(
-	const std::string &path,
-	T0D1ExtraNormalizeParameters &parameters
-);
+	virtual int Read(const std::string &path) override;
+	virtual int Write(const std::string &path) const override;
 
-int WriteExtraNormalizeParameters(
-	const std::string &path,
-	const T0D1ExtraNormalizeParameters &parameters
-);
-
-int ReadExtraNormalizeParameters(
-	const std::string &path,
-	T0D2ExtraNormalizeParameters &parameters
-);
-
-int WriteExtraNormalizeParameters(
-	const std::string &path,
-	const T0D2ExtraNormalizeParameters &parameters
-);
-
+	double rfs17_param[2];
+	double rfs20_param[2];
+};
 
 void PCAPrint(
 	const std::vector<Eigen::Vector3d> &points,
@@ -56,4 +69,3 @@ void PCAPrint(
 );
 
 }
-#endif

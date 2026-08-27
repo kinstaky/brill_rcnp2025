@@ -92,6 +92,7 @@ void LineNormalize(
 	const double *rbe = raw_event.back_integral;
 
 	// energy difference of first and second strip
+	TH1F hbs0("hbs0", "energy difference of back strip 1 and 127", 100, -8000, 8000);
 	TH1F hbs32a("hbs32a", "energy difference of back strip 31 and 33", 100, -2000, 2000);
 	TH1F hbs32b("hbs32b", "energy difference of back strip 31 and 34", 100, -2000, 2000);
 	TH1F hbs32c("hbs32c", "energy difference of back strip 34 and 31", 100, -2000, 2000);
@@ -102,9 +103,9 @@ void LineNormalize(
 	TH1F hfs1819("hfs1819", "energy difference of front strip 17 and 20", 100, -2000, 2000);
 	TH1F hfs2("hfs2", "energy difference of front strip 1 and 3", 100, -2000, 2000);
 	// no energy cut
-	TGraph2D gbs32n[4], gbs36n, gbs48n, gbs68n, gfs70n, gfs1819n, gfs2n;
+	TGraph2D gbs0n, gbs32n[4], gbs36n, gbs48n, gbs68n, gfs70n, gfs1819n, gfs2n;
 	// with energy cut on ajdacent strips differences
-	TGraph2D gbs32[3], gbs36, gbs48, gbs68, gfs70, gfs1819, gfs2;
+	TGraph2D gbs0, gbs32[3], gbs36, gbs48, gbs68, gfs70, gfs1819, gfs2;
 	// the thrid strip
 	TGraph grbs30, grbs35, grbs50, grbs70, grfs22, grfs15;
 	// the third and fourth strip
@@ -114,7 +115,7 @@ void LineNormalize(
 	// normal strip for comparing
 	TGraph2D gbs4041, gbs6566, gbs9293, gfs5253;
 	// points for PCA
-	std::vector<Eigen::Vector3d> pbs32[3], pbs36, pbs48, pbs68, pfs70, pfs1819, pfs2;
+	std::vector<Eigen::Vector3d> pbs0, pbs32[3], pbs36, pbs48, pbs68, pfs70, pfs1819, pfs2;
 	// points of regular strip for comparing
 	std::vector<Eigen::Vector3d> pbs4041, pbs6566, pbs9293, pfs5253;
 	// estimate small signal's linearity
@@ -132,8 +133,18 @@ void LineNormalize(
 		}
 		chain.GetEntry(entry);
 		if (fn == 1 && bn >= 2) {
-			double fe = NormEnergy(parameters, 0, fs[0], rfe[0]);
-			if (bn == 2 && AreStrips(bs, 31, 33)) {
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
+			if (fe > 1e5 || fe < 0) continue;
+			if (bn == 2 && AreStrips(bs, 1, 127)) {
+				double be1, be127;
+				GetEnergy(bs, rbe, be1, be127);
+				gbs0n.AddPoint(be1, be127, fe);
+				hbs0.Fill(be1-be127);
+				if (be1-be127 > -4000.0 && be1-be127 < -1000.0) {
+					gbs0.AddPoint(be1, be127, fe);
+					pbs0.push_back(Eigen::Vector3d(be1, be127, fe));
+				}
+			} else if (bn == 2 && AreStrips(bs, 31, 33)) {
 				double be31, be33;
 				GetEnergy(bs, rbe, be31, be33);
 				gbs32n[0].AddPoint(be31, be33, fe);
@@ -216,7 +227,8 @@ void LineNormalize(
 				pbs9293.push_back(Eigen::Vector3d(be92, be93, fe));
 			}
 		} else if (fn >= 2 && bn == 1) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
+			if (be > 1e5 || be < 0) continue;
 			if (AreStrips(fs, 69, 71)) {
 				double fe69, fe71;
 				GetEnergy(fs, rfe, fe69, fe71);
@@ -277,9 +289,10 @@ void LineNormalize(
 
 	// pca for special strips
 	const std::vector<Eigen::Vector3d>* pca_points[] = {
-		pbs32, pbs32+1, pbs32+2, &pbs36, &pbs48, &pbs68, &pfs70, &pfs1819, &pfs2
+		&pbs0, pbs32, pbs32+1, pbs32+2, &pbs36, &pbs48, &pbs68, &pfs70, &pfs1819, &pfs2
 	};
 	const std::string pca_descriptions[] = {
+		"Back strip 1 and 127",
 		"Back strip 31 and 33",
 		"Back strip 31 and 34",
 		"Back strip 34 and 31",
@@ -291,10 +304,10 @@ void LineNormalize(
 		"Front strip 1 and 3",
 	};
 	const std::string pca_names[] = {
-		"bs32a", "bs32b", "bs32c", "bs36", "bs48", "bs68",
+		"bs0", "bs32a", "bs32b", "bs32c", "bs36", "bs48", "bs68",
 		"fs70", "fs1819", "fs2",
 	};
-	for (int i = 0; i < 9; ++i) {
+	for (int i = 0; i < 10; ++i) {
 		PCAPrint(
 			*pca_points[i],
 			pca_descriptions[i],
@@ -324,6 +337,7 @@ void LineNormalize(
 	}
 	std::cout << "---------------------------------------------------------\n";
 
+	hbs0.Write();
 	hbs32a.Write();
 	hbs32b.Write();
 	hbs32c.Write();
@@ -333,6 +347,7 @@ void LineNormalize(
 	hfs70.Write();
 	hfs1819.Write();
 	hfs2.Write();
+	gbs0n.Write("gbs0n");
 	gbs32n[0].Write("gbs32na");
 	gbs32n[1].Write("gbs32nb");
 	gbs32n[2].Write("gbs32nc");
@@ -343,6 +358,7 @@ void LineNormalize(
 	gfs70n.Write("gfs70n");
 	gfs1819n.Write("gfs1819n");
 	gfs2n.Write("gfs2n");
+	gbs0.Write("gbs0");
 	gbs32[0].Write("gbs32a");
 	gbs32[1].Write("gbs32b");
 	gbs32[2].Write("gbs32c");
@@ -390,6 +406,7 @@ void LineEstimate(
 	const double *rbe = raw_event.back_integral;
 
 	// point-line difference (energy) after PCA
+	TH1F hdbs0("hdbs0", "Back strip 1 and 127 difference", 200, 0, 2000);
 	TH1F hdbs32a("hdbs32a", "Back strip 31 and 33 difference", 200, 0, 2000);
 	TH1F hdbs32b("hdbs32b", "Back strip 31 and 34 difference", 200, 0, 2000);
 	TH1F hdbs32c("hdbs32c", "Back strip 34 and 31 difference", 200, 0, 2000);
@@ -412,8 +429,18 @@ void LineEstimate(
 		}
 		chain.GetEntry(entry);
 		if (fn == 1 && bn >= 2) {
-			double fe = NormEnergy(parameters, 0, fs[0], rfe[0]);
-			if (bn == 2 && AreStrips(bs, 31, 33)) {
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
+			if (fe > 1e5 || fe < 0) continue;
+			if (bn == 2 && AreStrips(bs, 1, 127)) {
+				double be1, be127;
+				GetEnergy(bs, rbe, be1, be127);
+				Eigen::Vector3d point(be1, be127, fe);
+				hdbs0.Fill(brill::PointLineDistance(
+					point,
+					extra.pca["bs0"].mean,
+					extra.pca["bs0"].direction
+				));
+			} else if (bn == 2 && AreStrips(bs, 31, 33)) {
 				double be31, be33;
 				GetEnergy(bs, rbe, be31, be33);
 				Eigen::Vector3d point(be31, be33, fe);
@@ -469,7 +496,8 @@ void LineEstimate(
 				));
 			}
 		} else if (fn >= 2 && bn == 1) {
-			double be = NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
+			if (be > 1e5 || be < 0) continue;
 			if (AreStrips(fs, 69, 71)) {
 				double fe69, fe71;
 				GetEnergy(fs, rfe, fe69, fe71);
@@ -502,6 +530,7 @@ void LineEstimate(
 	}
 	printf("\b\b\b\b100%%\n");
 
+	hdbs0.Write();
 	hdbs32a.Write();
 	hdbs32b.Write();
 	hdbs32c.Write();
@@ -528,6 +557,7 @@ void PlaneNormalize(
 	const double *rfe = raw_event.front_integral;
 	const double *rbe = raw_event.back_integral;
 
+	TH1F habs0("habs0", "angle to line of back strip 1 and 127", 100, -1.0, 1.0);
 	TH1F habs32a("habs32a", "angle to line of back strip 31 and 33", 100, -1.0, 1.0);
 	TH1F habs32b("habs32b", "angle to line of back strip 31 and 34", 100, -1.0, 1.0);
 	TH1F habs32c("habs32c", "angle to line of back strip 34 and 31", 100, -1.0, 1.0);
@@ -538,7 +568,7 @@ void PlaneNormalize(
 	TH1F hafs1819("hafs1819", "angle to line of front strip 17 and 20", 100, -1.0, 1.0);
 	TH1F hafs2("hafs2", "angle to line of front strip 1 and 3", 100, -1.0, 1.0);
 	TGraph2D gbs32ag[3], gfs2g[3];
-	std::vector<Eigen::Vector3d> pbs32a[2], pbs32b[2], pbs32c[2], pbs36[2];
+	std::vector<Eigen::Vector3d> pbs0[2], pbs32a[2], pbs32b[2], pbs32c[2], pbs36[2];
 	std::vector<Eigen::Vector3d> pbs48[2], pbs68[2], pfs70[2], pfs1819[2], pfs2[2];
 
 	long long total = chain.GetEntries();
@@ -553,22 +583,35 @@ void PlaneNormalize(
 		}
 		chain.GetEntry(entry);
 		if (bn >= 2 && fn == 1) {
-			double fe = NormEnergy(parameters, 0, fs[0], rfe[0]);
-			if (bn == 2 && AreStrips(bs, 31, 33)) {
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
+			if (fe > 1e5 || fe < 0) continue;
+			if (bn == 2 && AreStrips(bs, 1, 127)) {
+				double be1, be127;
+				GetEnergy(bs, rbe, be1, be127);
+				Eigen::Vector3d point(be1, be127, fe);
+				const Eigen::Vector3d &centroid = extra.pca["bs0"].mean;
+				const Eigen::Vector3d &direction = extra.pca["bs0"].direction;
+				double distance = brill::PointLineDistance(point, centroid, direction);
+				if (distance < 900.0) continue;
+				double angle = brill::PointVerticalAngle(point, centroid, direction);
+				habs0.Fill(angle);
+				if (angle > 0.15 && angle < 0.45) pbs0[0].push_back(point);
+				else if (angle > 0.25 && angle < 0.4) pbs0[1].push_back(point);
+			} else if (bn == 2 && AreStrips(bs, 31, 33)) {
 				double be31, be33;
 				GetEnergy(bs, rbe, be31, be33);
 				Eigen::Vector3d point(be31, be33, fe);
 				const Eigen::Vector3d &centroid = extra.pca["bs32a"].mean;
 				const Eigen::Vector3d &direction = extra.pca["bs32a"].direction;
 				double distance = brill::PointLineDistance(point, centroid, direction);
-				if (distance < 400.0) continue;
+				if (distance < 800.0) continue;
 				double angle = brill::PointVerticalAngle(point, centroid, direction);
 				habs32a.Fill(angle);
-				if (angle > 0.1 && angle < 0.25) gbs32ag[0].AddPoint(be31, be33, fe);
-				else if (angle > 0.25 && angle < 0.4) gbs32ag[1].AddPoint(be31, be33, fe);
+				if (angle > -0.45 && angle < -0.32) gbs32ag[0].AddPoint(be31, be33, fe);
+				else if (angle > -0.32 && angle < -0.2) gbs32ag[1].AddPoint(be31, be33, fe);
 				else if (fabs(angle) > 0.9) gbs32ag[2].AddPoint(be31, be33, fe);
-				if (angle > 0.1 && angle < 0.25) pbs32a[0].push_back(point);
-				else if (angle > 0.25 && angle < 0.4) pbs32a[1].push_back(point);
+				if (angle > -0.45 && angle < -0.32) pbs32a[0].push_back(point);
+				else if (angle > -0.32 && angle < -0.2) pbs32a[1].push_back(point);
 			} else if (bs[0] == 31 && bs[1] == 34) {
 				double be31 = rbe[0];
 				double be34 = rbe[1];
@@ -591,8 +634,8 @@ void PlaneNormalize(
 				if (distance < 500.0) continue;
 				double angle = brill::PointVerticalAngle(point, centroid, direction);
 				habs32c.Fill(angle);
-				if (angle > -0.9 && angle < -0.6) pbs32c[0].push_back(point);
-				else if (angle > 0.9) pbs32c[1].push_back(point);
+				if (angle > 0.6 && angle < 0.9) pbs32c[0].push_back(point);
+				else if (angle < -0.9) pbs32c[1].push_back(point);
 			} else if (AreStrips(bs, 35, 37)) {
 				double be35, be37;
 				GetEnergy(bs, rbe, be35, be37);
@@ -603,8 +646,8 @@ void PlaneNormalize(
 				if (distance < 600.0) continue;
 				double angle = brill::PointVerticalAngle(point, centroid, direction);
 				habs36.Fill(angle);
-				if (angle > -0.3 && angle < 0.0) pbs36[0].push_back(point);
-				else if (angle > 0.5 && angle < 0.8) pbs36[1].push_back(point);
+				if (angle > 0.8) pbs36[0].push_back(point);
+				else if (angle < -0.8) pbs36[1].push_back(point);
 			} else if (AreStrips(bs, 47, 49)) {
 				double be47, be49;
 				GetEnergy(bs, rbe, be47, be49);
@@ -615,8 +658,8 @@ void PlaneNormalize(
 				if (distance < 600.0) continue;
 				double angle = brill::PointVerticalAngle(point, centroid, direction);
 				habs48.Fill(angle);
-				if (angle > -0.1 && angle < 0.1) pbs48[0].push_back(point);
-				else if (angle > 0.4 && angle < 0.65) pbs48[1].push_back(point);
+				if (angle > -0.4 && angle < -0.2) pbs48[0].push_back(point);
+				else if (angle > 0.6 && angle < 0.9) pbs48[1].push_back(point);
 			} else if (AreStrips(bs, 67, 69)) {
 				double be67, be69;
 				GetEnergy(bs, rbe, be67, be69);
@@ -627,11 +670,12 @@ void PlaneNormalize(
 				if (distance < 500.0) continue;
 				double angle = brill::PointVerticalAngle(point, centroid, direction);
 				habs68.Fill(angle);
-				if (angle > -0.4 && angle < -0.1) pbs68[0].push_back(point);
-				else if (angle > 0.6 && angle < 0.9) pbs68[1].push_back(point);
+				if (angle > 0.3 && angle < 0.55) pbs68[0].push_back(point);
+				else if (angle < -0.75) pbs68[1].push_back(point);
 			}
 		} else if (fn >= 2 && bn == 1) {
-			double be = brill::NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
+			if (be > 1e5 || be < 0) continue;
 			if (AreStrips(fs, 69, 71)) {
 				double fe69, fe71;
 				GetEnergy(fs, rfe, fe69, fe71);
@@ -678,11 +722,13 @@ void PlaneNormalize(
 
 	// PCA for plane
 	const std::vector<Eigen::Vector3d>* pca_points[] = {
-		pbs32a, pbs32a+1, pbs32b, pbs32b+1, pbs32c, pbs32c+1,
+		pbs0, pbs0+1, pbs32a, pbs32a+1, pbs32b, pbs32b+1, pbs32c, pbs32c+1,
 		pbs36, pbs36+1, pbs48, pbs48+1, pbs68, pbs68+1,
 		pfs70, pfs70+1, pfs1819, pfs1819+1, pfs2, pfs2+1
 	};
 	const std::string pca_descriptions[] = {
+		"Back strip 1 and 127 plane 0",
+		"Back strip 1 and 127 plane 1",
 		"Back strip 31 and 33 plane 0",
 		"Back strip 31 and 33 plane 1",
 		"Back strip 31 and 34 plane 0",
@@ -703,11 +749,11 @@ void PlaneNormalize(
 		"Front strip 1 and 3 plane 1"
 	};
 	const std::string pca_names[] = {
-		"bs32ap0", "bs32ap1", "bs32bp0", "bs32bp1", "bs32cp0", "bs32cp1",
+		"bs0p0", "bs0p1", "bs32ap0", "bs32ap1", "bs32bp0", "bs32bp1", "bs32cp0", "bs32cp1",
 		"bs36p0", "bs36p1", "bs48p0", "bs48p1", "bs68p0", "bs68p1",
 		"fs70p0", "fs70p1", "fs1819p0", "fs1819p1", "fs2p0", "fs2p1"
 	};
-	for (int i = 0; i < 18; ++i) {
+	for (int i = 0; i < 20; ++i) {
 		PCAPrint(
 			*pca_points[i],
 			pca_descriptions[i],
@@ -718,6 +764,7 @@ void PlaneNormalize(
 	}
 	std::cout << "---------------------------------------------------------\n";
 
+	habs0.Write();
 	habs32a.Write();
 	habs32b.Write();
 	habs32c.Write();
@@ -783,7 +830,7 @@ void PlaneEstimate(
 		}
 		chain.GetEntry(entry);
 		if (bn >= 2 && fn == 1) {
-			double fe = NormEnergy(parameters, 0, fs[0], rfe[0]);
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
 			if (bn == 2 && AreStrips(bs, 31, 33)) {
 				double be31, be33;
 				GetEnergy(bs, rbe, be31, be33);
@@ -858,7 +905,7 @@ void PlaneEstimate(
 				hdbs68_p1.Fill(distance_p1);
 			}
 		} else if (fn >= 2 && bn == 1) {
-			double be = brill::NormEnergy(parameters, 1, bs[0], rbe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
 			if (AreStrips(fs, 69, 71)) {
 				double fe69, fe71;
 				GetEnergy(fs, rfe, fe69, fe71);
@@ -1041,7 +1088,7 @@ void Classify(
 		flag = type = 0;
 		bool valid = false;
 		if (bn >= 2 && fn == 1) {
-			opposite_energy = NormEnergy(parameters, 0, fs[0], rfe[0]);
+			opposite_energy = parameters.NormEnergy(0, fs[0], rfe[0]);
 			opposite_strip = fs[0];
 			side = 1;
 			if (bn == 2 && AreStrips(bs, 31, 33)) {
@@ -1134,7 +1181,7 @@ void Classify(
 				if (type) gbs68[type].AddPoint(energy[0], energy[1], opposite_energy);
 			}
 		} else if (fn >= 2 && bn == 1) {
-			opposite_energy = brill::NormEnergy(parameters, 1, bs[0], rbe[0]);
+			opposite_energy = parameters.NormEnergy(1, bs[0], rbe[0]);
 			opposite_strip = bs[0];
 			side = 0;
 			if (AreStrips(fs, 69, 71)) {
@@ -1202,6 +1249,86 @@ void Classify(
 	std::cout << "---------------------------------------------------------\n";
 }
 
+
+void EstimateAdjacentSingleHit(
+	TChain &chain,
+	brill::DssdEvent &raw_event,
+	brill::DssdNormalizeParameters &parameters,
+	brill::T0D2ExtraNormalizeParameters &extra
+) {
+	// for convenient
+	const int &fn = raw_event.front_num;
+	const int &bn = raw_event.back_num;
+	const int *fs = raw_event.front_strip;
+	const int *bs = raw_event.back_strip;
+	const double *rfe = raw_event.front_integral;
+	const double *rbe = raw_event.back_integral;
+
+	// residual graph, exclude normal front-back events
+	TGraph grfs17, grfs20;
+	TH1F hrfs17("hrfs17", "Front-back residual difference front strip 17", 500, -5000, 5000);
+	TH1F hrfs20("hrfs20", "Front-back residual difference front strip 20", 500, -5000, 5000);
+
+	long long total = chain.GetEntries();
+	long long last_percentage = 0;
+	printf("Estimating adjacent strip single hit   0%%");
+	fflush(stdout);
+	for (long long entry = 0; entry < total; ++entry) {
+		if (entry * 100 / total > last_percentage) {
+			last_percentage = entry * 100 / total;
+			printf("\b\b\b\b%3lld%%", last_percentage);
+			fflush(stdout);
+		}
+		chain.GetEntry(entry);
+		if (fn == 1 && bn == 1) {
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
+			if (fabs(fe-be) < 2000 || fe > 10000) continue;
+			if (fs[0] == 17) grfs17.AddPoint(fe, be);
+			else if (fs[0] == 20) grfs20.AddPoint(fe, be);
+		}
+	}
+	printf("\b\b\b\b100%%\n");
+
+	TF1 *f17 = new TF1("rf17", "pol1", 0, 10000);
+	grfs17.Fit(f17, "QR+ ROB=0.6");
+	extra.rfs17_param[0] = f17->GetParameter(0);
+	extra.rfs17_param[1] = f17->GetParameter(1);
+	TF1 *f20 = new TF1("rf20", "pol1", 0, 10000);
+	grfs20.Fit(f20, "QR+ ROB=0.6");
+	extra.rfs20_param[0] = f20->GetParameter(0);
+	extra.rfs20_param[1] = f20->GetParameter(1);
+
+	std::cout << f17->GetParameter(0) << ", " << f17->GetParameter(1) << "\n"
+		<< f20->GetParameter(0) << ", " << f20->GetParameter(1) << "\n";
+
+	last_percentage = 0;
+	printf("Filling adjacent strip single hit difference   0%%");
+	fflush(stdout);
+	for (long long entry = 0; entry < total; ++entry) {
+		if (entry * 100 / total > last_percentage) {
+			last_percentage = entry * 100 / total;
+			printf("\b\b\b\b%3lld%%", last_percentage);
+			fflush(stdout);
+		}
+		chain.GetEntry(entry);
+		if (fn == 1 && bn == 1) {
+			double fe = parameters.NormEnergy(0, fs[0], rfe[0]);
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
+			if (fabs(fe-be) < 2000 || fe > 10000) continue;
+			if (fs[0] == 17) hrfs17.Fill(f17->Eval(fe)-be);
+			else if (fs[0] == 20) hrfs20.Fill(f20->Eval(fe)-be);
+		}
+	}
+	printf("\b\b\b\b100%%\n");
+	grfs17.Write("grfs17");
+	grfs20.Write("grfs20");
+	hrfs17.Write();
+	hrfs20.Write();
+}
+
+
+
 int main(int argc, char **argv) {
 	cxxopts::Options options(
 		"normalize_extra_t0d2",
@@ -1231,11 +1358,11 @@ int main(int argc, char **argv) {
 	}
 
 	brill::AppConfig config;
-	if (brill::LoadConfig(result["config"].as<std::string>(), config)) {
+	if (config.Load(result["config"].as<std::string>())) {
 		return 1;
 	}
 	if (result.count("trigger")) {
-		config.trigger = result["trigger"].as<std::string>();
+		config.root.trigger = result["trigger"].as<std::string>();
 	}
 	const int run = result["run"].as<int>();
 	const int end_run = result.count("end-run") ? result["end-run"].as<int>() : run;
@@ -1244,8 +1371,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	const brill::SiliconDetectorConfig *detector =
-		brill::FindDetectorConfig(config, "t0d2");
+	const brill::SiliconDetectorConfig *detector = config.FindDetector("t0d2");
 	if (!detector) {
 		std::cerr << "Error: Detector t0d2 is not found in config.\n";
 		return 1;
@@ -1254,12 +1380,12 @@ int main(int argc, char **argv) {
 	TChain chain("tree");
 	int added_runs = 0;
 	for (int current_run = run; current_run <= end_run; ++current_run) {
-		if (brill::IsJumpRun(config, current_run)) continue;
+		if (config.IsJumpRun(current_run)) continue;
 		++added_runs;
 		chain.Add(TString::Format(
 			"%s/t0d2_%s%04d.root",
-			brill::JoinPath(config.workspace, config.paths.ingot).c_str(),
-			brill::TriggerInfix(config.trigger).c_str(),
+			brill::JoinPath(config.root.workspace, config.paths.ingot).c_str(),
+			brill::TriggerInfix(config.root.trigger).c_str(),
 			current_run
 		));
 	}
@@ -1270,24 +1396,15 @@ int main(int argc, char **argv) {
 	brill::DssdEvent raw_event;
 	brill::SetupInput(&chain, raw_event);
 
-	brill::DssdNormalizeParameters parameters;
-	parameters.front_strips = detector->front_strips;
-	parameters.back_strips = detector->back_strips;
+	brill::DssdNormalizeParameters parameters(detector->front_strips, detector->back_strips);
 
-	std::string normalize_dir = brill::JoinPath(config.workspace, config.paths.normalize);
-	TString front_path = TString::Format(
-		"%s/t0d2_front_%04d.txt",
+	std::string normalize_dir = brill::JoinPath(config.root.workspace, config.paths.normalize);
+	std::string parameters_path = TString::Format(
+		"%s/t0d2_%04d.txt",
 		normalize_dir.c_str(),
 		run
-	);
-	TString back_path = TString::Format(
-		"%s/t0d2_back_%04d.txt",
-		normalize_dir.c_str(),
-		run
-	);
-	if (brill::ReadDssdNormalizeParameters(
-		front_path.Data(), back_path.Data(), parameters
-	)) {
+	).Data();
+	if (parameters.Read(parameters_path)) {
 		std::cerr << "Error: Read normalize parameters failed.\n";
 		return 1;
 	}
@@ -1295,7 +1412,7 @@ int main(int argc, char **argv) {
 	TString output_path = TString::Format(
 		"%s/t0d2_%sextra_%04d_%04d.root",
 		normalize_dir.c_str(),
-		brill::TriggerInfix(config.trigger).c_str(),
+		brill::TriggerInfix(config.root.trigger).c_str(),
 		run,
 		end_run
 	);
@@ -1306,6 +1423,7 @@ int main(int argc, char **argv) {
 	PlaneNormalize(chain, raw_event, parameters, extra_parameters);
 	PlaneEstimate(chain, raw_event, parameters, extra_parameters);
 	Classify(chain, raw_event, parameters, extra_parameters);
+	EstimateAdjacentSingleHit(chain, raw_event, parameters, extra_parameters);
 	opf.Close();
 
 	// write to file
@@ -1314,10 +1432,7 @@ int main(int argc, char **argv) {
 		normalize_dir.c_str(),
 		run
 	);
-	if (brill::WriteExtraNormalizeParameters(
-		t0d2_extra_path.Data(),
-		extra_parameters
-	)) {
+	if (extra_parameters.Write(t0d2_extra_path.Data())) {
 		std::cerr << "Error: write t0d2_extra parameter file "
 			<< t0d2_extra_path.Data() << " failed." << std::endl;
 	}

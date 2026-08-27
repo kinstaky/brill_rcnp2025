@@ -4,103 +4,155 @@
 
 namespace brill {
 
-std::istream &operator>>(std::istream &is, NonLinearParameter &non_linear) {
-	for (int i = 0; i < 4; ++i) {
-		is >> non_linear.xmin[i]
-			>> non_linear.xmax[i]
-			>> non_linear.ymin[i]
-			>> non_linear.ymax[i]
-			>> non_linear.p0[i]
-			>> non_linear.p1[i]
-			>> non_linear.p2[i];
+std::istream& operator>>(std::istream &is, Pol2Parameter &parameter) {
+	is >> parameter.p0 >> parameter.p1 >> parameter.p2;
+	return is;
+}
+
+std::ostream& operator<<(std::ostream &os, const Pol2Parameter &parameter) {
+	os << parameter.p0 << " " << parameter.p1 << " " << parameter.p2;
+	return os;
+}
+
+std::istream& operator>>(std::istream &is, PiecewiseParameter &parameter) {
+	int count;
+	is >> count;
+
+	for (int i = 0; i < count; ++i) {
+		Range range;
+		Pol2Parameter pol2;
+		is >> range.xmin >> range.xmax
+			>> range.ymin >> range.ymax
+			>> pol2;
+		parameter.range.push_back(range);
+		parameter.pol2.push_back(pol2);
 	}
 	return is;
 }
 
-std::ofstream &operator<<(std::ofstream &os, const NonLinearParameter &non_linear) {
-	for (int i = 0; i < 4; ++i) {
-		os << non_linear.xmin[i] << " "
-			<< non_linear.xmax[i] << " "
-			<< non_linear.ymin[i] << " "
-			<< non_linear.ymax[i] << " "
-			<< non_linear.p0[i] << " "
-			<< non_linear.p1[i] << " "
-			<< non_linear.p2[i] << "\n";
+std::ostream& operator<<(std::ostream &os, const PiecewiseParameter &parameter) {
+	os << parameter.range.size() << "\n";
+	for (size_t i = 0; i < parameter.range.size(); ++i) {
+		os << parameter.range[i].xmin << " "
+			<< parameter.range[i].xmax << " "
+			<< parameter.range[i].ymin << " "
+			<< parameter.range[i].ymax << " "
+			<< parameter.pol2[i] << "\n";
 	}
 	return os;
 }
 
 
-int ReadExtraNormalizeParameters(
-	const std::string &path,
-	T0D1ExtraNormalizeParameters &parameters
-) {
+int T0D1ExtraNormalizeParameters::Read(const std::string &path) {
 	std::ifstream fin(path);
 	if (!fin.good()) {
 		std::cerr << "Error: Open normalize parameter file "
 			<< path << " failed.\n";
 		return -1;
 	}
-	fin >> parameters.non_linear;
-	while (fin.good()) {
-		std::string name;
-		PCAParameter par;
-		fin >> name >> par;
-		parameters.pca.insert(std::make_pair(name, par));
+	char c;
+	std::string type, name;
+	int count;
+	fin >> c >> type >> count;
+	while (c == '#' && fin.good()) {
+		if (type == "piecewise") {
+			fin >> piecewise;
+		} else if (type == "pol2") {
+			for (int i = 0; i < count; ++i) {
+				Pol2Parameter par;
+				fin >> name >> par;
+				pol2.insert(std::make_pair(name, par));
+			}
+		} else if (type == "pca") {
+			for (int i = 0; i < count; ++i) {
+				PCAParameter par;
+				fin >> name >> par;
+				pca.insert(std::make_pair(name, par));
+			}
+		}
+		fin >> c >> type >> count;
 	}
 	return 0;
 }
 
 
-int WriteExtraNormalizeParameters(
-	const std::string &path,
-	const T0D1ExtraNormalizeParameters &parameters
-) {
+int T0D1ExtraNormalizeParameters::Write(const std::string &path) const {
 	std::ofstream fout(path);
 	if (!fout.good()) {
 		std::cerr << "Error: Open output normalize parameter file "
 			<< path << " failed.\n";
 		return -1;
 	}
-	fout << parameters.non_linear;
-	for (const auto &p : parameters.pca) {
+
+	fout << "# piecewise 1\n";
+	fout << piecewise;
+
+	fout << "# pca " << pca.size() << "\n";
+	for (const auto &p : pca) {
+		fout << p.first << " " << p.second << "\n";
+	}
+
+	fout << "# pol2 " << pol2.size() << "\n";
+	for (const auto &p : pol2) {
 		fout << p.first << " " << p.second << "\n";
 	}
 	return 0;
 }
 
 
-int ReadExtraNormalizeParameters(
-	const std::string &path,
-	T0D2ExtraNormalizeParameters &parameters
-) {
+int T0D2ExtraNormalizeParameters::Read(const std::string &path) {
 	std::ifstream fin(path);
 	if (!fin.good()) {
 		std::cerr << "Error: Open normalize parameter file "
 			<< path << " failed.\n";
 		return -1;
 	}
-	while (fin.good()) {
-		std::string name;
-		PCAParameter par;
-		fin >> name >> par;
-		parameters.pca.insert(std::make_pair(name, par));
+	char c;
+	std::string type, name;
+	int count;
+	fin >> c >> type >> count;
+	while (c == '#' && fin.good()) {
+		if (type == "pol2") {
+			for (int i = 0; i < count; ++i) {
+				Pol2Parameter par;
+				fin >> name >> par;
+				pol2.insert(std::make_pair(name, par));
+			}
+		} else if (type == "pca") {
+			for (int i = 0; i < count; ++i) {
+				PCAParameter par;
+				fin >> name >> par;
+				pca.insert(std::make_pair(name, par));
+			}
+		} else if (type == "rs") {
+			fin >> rfs17_param[0] >> rfs17_param[1]
+				>> rfs20_param[0] >> rfs20_param[1];
+		}
+		fin >> c >> type >> count;
 	}
 	return 0;
 }
 
 
-int WriteExtraNormalizeParameters(
-	const std::string &path,
-	const T0D2ExtraNormalizeParameters &parameters
-) {
+int T0D2ExtraNormalizeParameters::Write(const std::string &path) const {
 	std::ofstream fout(path);
 	if (!fout.good()) {
 		std::cerr << "Error: Open output normalize parameter file "
 			<< path << " failed.\n";
 		return -1;
 	}
-	for (const auto &p : parameters.pca) {
+
+	fout << "# rs 1 "
+		<< rfs17_param[0] << " " << rfs17_param[1] << " "
+		<< rfs20_param[0] << " " << rfs20_param[1] << "\n";
+
+	fout << "# pca " << pca.size() << "\n";
+	for (const auto &p : pca) {
+		fout << p.first << " " << p.second << "\n";
+	}
+
+	fout << "# pol2 " << pol2.size() << "\n";
+	for (const auto &p : pol2) {
 		fout << p.first << " " << p.second << "\n";
 	}
 	return 0;

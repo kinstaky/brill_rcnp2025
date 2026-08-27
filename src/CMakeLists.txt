@@ -8,3 +8,10 @@ target_include_directories(
 	${PROJECT_SOURCE_DIR} ${ROOT_INCLUDE_DIRS}
 )
 target_link_libraries(normalize_extra PUBLIC pca)
+
+add_library(strip_combination strip_combination.cpp)
+target_include_directories(
+	strip_combination PUBLIC
+	${PROJECT_SOURCE_DIR} ${ROOT_INCLUDE_DIRS}
+)
+target_link_libraries(strip_combination PUBLIC normalize_extra)
