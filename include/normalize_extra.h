@@ -56,6 +56,8 @@ public:
 	virtual int Read(const std::string &path) override;
 	virtual int Write(const std::string &path) const override;
 
+	PiecewiseParameter pfs75;
+	PiecewiseParameter pfs99;
 	double rfs17_param[2];
 	double rfs20_param[2];
 };

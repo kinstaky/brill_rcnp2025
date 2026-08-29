@@ -112,7 +112,9 @@ int T0D2ExtraNormalizeParameters::Read(const std::string &path) {
 	int count;
 	fin >> c >> type >> count;
 	while (c == '#' && fin.good()) {
-		if (type == "pol2") {
+		if (type == "piecewise") {
+			fin >> pfs75 >> pfs99;
+		} else if (type == "pol2") {
 			for (int i = 0; i < count; ++i) {
 				Pol2Parameter par;
 				fin >> name >> par;
@@ -141,6 +143,9 @@ int T0D2ExtraNormalizeParameters::Write(const std::string &path) const {
 			<< path << " failed.\n";
 		return -1;
 	}
+
+	fout << "# piecewise 2\n";
+	fout << pfs75 << pfs99;
 
 	fout << "# rs 1 "
 		<< rfs17_param[0] << " " << rfs17_param[1] << " "

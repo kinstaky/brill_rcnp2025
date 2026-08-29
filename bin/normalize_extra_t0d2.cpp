@@ -77,6 +77,105 @@ int PrincipalComponentAnalysisDim5(
 }
 
 
+void FitPiecewise(
+	TChain &chain,
+	brill::DssdEvent &raw_event,
+	brill::DssdNormalizeParameters &parameters,
+	brill::T0D2ExtraNormalizeParameters &extra
+) {
+
+	// for convenient
+	const int &fn = raw_event.front_num;
+	const int &bn = raw_event.back_num;
+	const int *fs = raw_event.front_strip;
+	const int *bs = raw_event.back_strip;
+	const double *rfe = raw_event.front_integral;
+	const double *rbe = raw_event.back_integral;
+
+	// piecewise strip
+	TGraph gfs75[4], gfs99[3];
+
+	long long total = chain.GetEntries();
+	long long last_percentage = 0;
+	printf("Fitting piecewise   0%%");
+	fflush(stdout);
+	for (long long entry = 0; entry < total; ++entry) {
+		if (entry * 100 / total > last_percentage) {
+			last_percentage = entry * 100 / total;
+			printf("\b\b\b\b%3lld%%", last_percentage);
+			fflush(stdout);
+		}
+		chain.GetEntry(entry);
+		if (fn == 1 && bn == 1) {
+			double be = parameters.NormEnergy(1, bs[0], rbe[0]);
+			if (fs[0] == 75) {
+				if (rfe[0] < 4000) gfs75[0].AddPoint(rfe[0], be);
+				else if (rfe[0] < 5200) gfs75[1].AddPoint(rfe[0], be);
+				else if (rfe[0] < 7000) gfs75[2].AddPoint(rfe[0], be);
+				else gfs75[3].AddPoint(rfe[0], be);
+			} else if (fs[0] == 99) {
+				if (rfe[0] < 5600) gfs99[0].AddPoint(rfe[0], be);
+				else if (rfe[0]  < 8500) gfs99[1].AddPoint(rfe[0], be);
+				else gfs99[2].AddPoint(rfe[0], be);
+			}
+		}
+	}
+	printf("\b\b\b\b100%%\n");
+
+	extra.pfs75.range.push_back({0.0, 4000.0, -1.0, -1.0});
+	extra.pfs75.range.push_back({4000.0, 6500.0, -1.0, -1.0});
+	extra.pfs75.range.push_back({4000.0, 6500.0, -1.0, -1.0});
+	extra.pfs75.range.push_back({6500.0, 70000.0, -1.0, -1.0});
+	TF1 ffs75a("ffs75a", "pol1", 0, 4000);
+	gfs75[0].Fit(&ffs75a, "R+ ROB=0.9");
+	TF1 ffs75b("ffs75b", "pol2", 4000, 5200);
+	gfs75[1].Fit(&ffs75b, "R+ ROB=0.9");
+	TF1 ffs75c("ffs75c", "pol2", 5200, 7000);
+	gfs75[2].Fit(&ffs75c, "R+");
+	TF1 ffs75d("ffs75d", "pol2", 7000, 70000);
+	gfs75[3].Fit(&ffs75d, "R+");
+	extra.pfs75.pol2.resize(4);
+	extra.pfs75.pol2[0].p0 = ffs75a.GetParameter(0);
+	extra.pfs75.pol2[0].p1 = ffs75a.GetParameter(1);
+	extra.pfs75.pol2[0].p2 = 0.0;
+	extra.pfs75.pol2[1].p0 = ffs75b.GetParameter(0);
+	extra.pfs75.pol2[1].p1 = ffs75b.GetParameter(1);
+	extra.pfs75.pol2[1].p2 = ffs75b.GetParameter(2);
+	extra.pfs75.pol2[2].p0 = ffs75c.GetParameter(0);
+	extra.pfs75.pol2[2].p1 = ffs75c.GetParameter(1);
+	extra.pfs75.pol2[2].p2 = ffs75c.GetParameter(2);
+	extra.pfs75.pol2[3].p0 = ffs75d.GetParameter(0);
+	extra.pfs75.pol2[3].p1 = ffs75d.GetParameter(1);
+	extra.pfs75.pol2[3].p2 = ffs75d.GetParameter(2);
+
+	extra.pfs99.range.push_back({0.0, 5600.0, -1.0, -1.0});
+	extra.pfs99.range.push_back({5600.0, 8500.0, -1.0, -1.0});
+	extra.pfs99.range.push_back({8500.0, 70000.0, -1.0, -1.0});
+	TF1 ffs99a("ffs99a", "pol1", 0, 5600);
+	gfs99[0].Fit(&ffs99a, "R+ ROB=0.9");
+	TF1 ffs99b("ffs99b", "pol2", 5600, 8500);
+	gfs99[1].Fit(&ffs99b, "R+ ROB=0.9");
+	TF1 ffs99c("ffs99c", "pol2", 8500, 70000);
+	gfs99[2].Fit(&ffs99c, "R+");
+	extra.pfs99.pol2.resize(3);
+	extra.pfs99.pol2[0].p0 = ffs99a.GetParameter(0);
+	extra.pfs99.pol2[0].p1 = ffs99a.GetParameter(1);
+	extra.pfs99.pol2[0].p2 = 0.0;
+	extra.pfs99.pol2[1].p0 = ffs99b.GetParameter(0);
+	extra.pfs99.pol2[1].p1 = ffs99b.GetParameter(1);
+	extra.pfs99.pol2[1].p2 = ffs99b.GetParameter(2);
+	extra.pfs99.pol2[2].p0 = ffs99c.GetParameter(0);
+	extra.pfs99.pol2[2].p1 = ffs99c.GetParameter(1);
+	extra.pfs99.pol2[2].p2 = ffs99c.GetParameter(2);
+
+	for (int i = 0; i < 4; ++i) {
+		gfs75[i].Write(TString::Format("gfs75%c", "abcd"[i]));
+	}
+	for (int i = 0; i < 3; ++i) {
+		gfs99[i].Write(TString::Format("gfs99%c", "abc"[i]));
+	}
+}
+
 void LineNormalize(
 	TChain &chain,
 	brill::DssdEvent &raw_event,
@@ -820,7 +919,7 @@ void PlaneEstimate(
 
 	long long total = chain.GetEntries();
 	long long last_percentage = 0;
-	printf("Estimating plane in t0d1   0%%");
+	printf("Estimating plane in t0d2   0%%");
 	fflush(stdout);
 	for (long long entry = 0; entry < total; ++entry) {
 		if (entry * 100 / total > last_percentage) {
@@ -1045,7 +1144,7 @@ void Classify(
 
 	TGraph2D gbs68[4];
 
-	TTree opt("tree", "tree for T0D1 extra normalize classification");
+	TTree opt("tree", "tree for T0D2 extra normalize classification");
 	int side;
 	int strip[2], opposite_strip;
 	double energy[2], opposite_energy;
@@ -1076,7 +1175,7 @@ void Classify(
 
 	long long total = chain.GetEntries();
 	long long last_percentage = 0;
-	printf("Classifying t0d1   0%%");
+	printf("Classifying t0d2   0%%");
 	fflush(stdout);
 	for (long long entry = 0; entry < total; ++entry) {
 		if (entry * 100 / total > last_percentage) {
@@ -1418,6 +1517,7 @@ int main(int argc, char **argv) {
 	);
 	TFile opf(output_path, "recreate");
 	brill::T0D2ExtraNormalizeParameters extra_parameters;
+	FitPiecewise(chain, raw_event, parameters, extra_parameters);
 	LineNormalize(chain, raw_event, parameters, extra_parameters);
 	LineEstimate(chain, raw_event, parameters, extra_parameters);
 	PlaneNormalize(chain, raw_event, parameters, extra_parameters);

@@ -143,7 +143,6 @@ void GetT0D1BackCombinations(
 	const brill::SiliconDetectorConfig *detector,
 	const brill::DssdEvent &raw,
 	const brill::DssdNormalizeParameters &parameters,
-	const brill::T0D1ExtraNormalizeParameters &,
 	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
 	std::vector<std::unique_ptr<brill::StripCombination>> &combinations
 ) {
@@ -424,7 +423,6 @@ void MatchT0D1WithSpecialStrips(
 			detector,
 			raw,
 			parameters,
-			extra,
 			pca_parameters,
 			back_comb
 		);
@@ -633,14 +631,36 @@ void GetT0D2FrontCombinations(
 			parameters.front_p2[raw.front_strip[i]],
 			parameters.front_p3[raw.front_strip[i]]
 		};
-		// normal
-		combinations.push_back(
-			std::make_unique<brill::NormalStripCombination>(
-				1 << i,
-				strip1,
-				detector->match_tolerance
-			)
-		);
+		if (raw.front_strip[i] == 75) {
+			// piecewise
+			combinations.push_back(
+				std::make_unique<brill::PiecewiseStripCombination>(
+					1 << i,
+					strip1,
+					extra.pfs75,
+					detector->match_tolerance
+				)
+			);
+		} else if (raw.front_strip[i] == 99) {
+			// piecewise
+			combinations.push_back(
+				std::make_unique<brill::PiecewiseStripCombination>(
+					1 << i,
+					strip1,
+					extra.pfs99,
+					detector->match_tolerance
+				)
+			);
+		} else {
+			// normal
+			combinations.push_back(
+				std::make_unique<brill::NormalStripCombination>(
+					1 << i,
+					strip1,
+					detector->match_tolerance
+				)
+			);
+		}
 		for (int j = i+1; j < raw.front_num; ++j) {
 			brill::StripInfo strip2 {
 				raw.front_strip[j],
@@ -652,15 +672,37 @@ void GetT0D2FrontCombinations(
 				parameters.front_p3[raw.front_strip[j]]
 			};
 			if (abs(raw.front_strip[i] - raw.front_strip[j]) == 1) {
-				// normal shared
-				combinations.push_back(
-					std::make_unique<brill::NormalSharedStripCombination>(
-						(1 << i) | (1 << j),
-						strip1,
-						strip2,
-						detector->match_tolerance
-					)
-				);
+				if (raw.front_strip[i] == 75 || raw.front_strip[j] == 75) {
+					combinations.push_back(
+						std::make_unique<brill::PiecewiseSharedStripCombination>(
+							(1 << i) | (1 << j),
+							raw.front_strip[i] == 75 ? strip1 : strip2,
+							raw.front_strip[i] == 75 ? strip2 : strip1,
+							extra.pfs75,
+							detector->match_tolerance
+						)
+					);
+				} else if (raw.front_strip[i] == 99 || raw.front_strip[j] == 99) {
+					combinations.push_back(
+						std::make_unique<brill::PiecewiseSharedStripCombination>(
+							(1 << i) | (1 << j),
+							raw.front_strip[i] == 99 ? strip1 : strip2,
+							raw.front_strip[i] == 99 ? strip2 : strip1,
+							extra.pfs99,
+							detector->match_tolerance
+						)
+					);
+				} else {
+					// normal shared
+					combinations.push_back(
+						std::make_unique<brill::NormalSharedStripCombination>(
+							(1 << i) | (1 << j),
+							strip1,
+							strip2,
+							detector->match_tolerance
+						)
+					);
+				}
 				continue;
 			}
 			// broken adjacent
@@ -697,7 +739,6 @@ void GetT0D2BackCombinations(
 	const brill::SiliconDetectorConfig *detector,
 	const brill::DssdEvent &raw,
 	const brill::DssdNormalizeParameters &parameters,
-	const brill::T0D2ExtraNormalizeParameters &,
 	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
 	std::vector<std::unique_ptr<brill::StripCombination>> &combinations
 ) {
@@ -740,6 +781,29 @@ void GetT0D2BackCombinations(
 						strip1,
 						strip2,
 						detector->match_tolerance
+					)
+				);
+			}
+			// broken adjacent
+			for (const auto &[name, pca] : pca_parameters) {
+				if (pca.side == 0) continue;
+				if (!AreStrips(
+					raw.back_strip[i], raw.back_strip[j],
+					pca.strips[0], pca.strips[1],
+					pca.has_order
+				)) continue;
+				combinations.push_back(
+					std::make_unique<brill::BrokenAdjacentStripCombination>(
+						(0x100 << i) | (0x100 << j),
+						raw.back_strip[i] == pca.strips[0] ? strip1 : strip2,
+						raw.back_strip[i] == pca.strips[0] ? strip2 : strip1,
+						pca.broken_strip,
+						pca.line,
+						pca.plane[0],
+						pca.plane[1],
+						pca.threshold[0],
+						pca.threshold[1],
+						pca.threshold[2]
 					)
 				);
 			}
@@ -831,7 +895,6 @@ void MatchT0D2WithSpecialStrips(
 			detector,
 			raw,
 			parameters,
-			extra,
 			pca_parameters,
 			back_comb
 		);
@@ -1111,8 +1174,8 @@ int main(int argc, char **argv) {
 		{"fs70", {0, {69, 71}, 70, false, {}, {{}, {}}, {300.0, 300.0, 300.0}}},
 		// {"bs0", {1, {1, 127}, 0, false, {}, {{}, {}}, {300.0, 300.0, 300.0}}},
 		{"bs32a", {1, {31, 33}, 32, true, {}, {{}, {}}, {400.0, 500.0, 600.0}}},
-		{"bs32b", {1, {31, 34}, 33, true, {}, {{}, {}}, {500.0, 500.0, 500.0}}},
-		{"bs32c", {1, {34, 31}, 33, true, {}, {{}, {}}, {500.0, 500.0, 600.0}}},
+		{"bs32b", {1, {31, 34}, 32, true, {}, {{}, {}}, {500.0, 500.0, 500.0}}},
+		{"bs32c", {1, {34, 31}, 32, true, {}, {{}, {}}, {500.0, 500.0, 600.0}}},
 		{"bs36", {1, {35, 37}, 36, false, {}, {{}, {}}, {600.0, 600.0, 600.0}}},
 		{"bs48", {1, {47, 49}, 48, false, {}, {{}, {}}, {600.0, 700.0, 700.0}}},
 		{"bs68", {1, {67, 69}, 68, false, {}, {{}, {}}, {500.0, 600.0, 600.0}}},
