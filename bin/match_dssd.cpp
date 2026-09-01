@@ -535,6 +535,8 @@ void MatchT0D1WithSpecialStrips(
 			);
 			++match.num;
 		}
+		match.run = raw.run;
+		match.entry = int(entry);
 
 		// have a look at the distribution of residual events
 		residual_event.front_num = 0;

@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include <TChain.h>
 #include <TFile.h>
@@ -14,44 +15,11 @@
 #include "include/event/ingot/silicon_event.h"
 #include "include/event/t0/dssd_match_event.h"
 #include "include/utils.h"
-
-namespace {
+#include "include/t0_utils.h"
 
 void PrintUsage(const cxxopts::Options &options) {
 	std::cout << options.help() << "\n";
 }
-
-// bool InTrackWindow(
-// 	const brill::DssdMatchEvent &left,
-// 	int left_index,
-// 	const brill::DssdMatchEvent &right,
-// 	int right_index,
-// 	const brill::TrackWindowConfig &window
-// ) {
-// 	double dx = right.x[right_index] - left.x[left_index];
-// 	double dy = right.y[right_index] - left.y[left_index];
-// 	return
-// 		dx >= window.min
-// 		&& dx <= window.max
-// 		&& dy >= window.min
-// 		&& dy <= window.max;
-// }
-
-// void FillPairPid(
-// 	const brill::DssdMatchEvent &left,
-// 	const brill::DssdMatchEvent &right,
-// 	const brill::TrackWindowConfig &window,
-// 	TH2F &histogram
-// ) {
-// 	for (int i = 0; i < left.num; ++i) {
-// 		for (int j = 0; j < right.num; ++j) {
-// 			if (!InTrackWindow(left, i, right, j, window)) continue;
-// 			histogram.Fill(right.energy[j], left.energy[i]);
-// 		}
-// 	}
-// }
-
-} // namespace
 
 int main(int argc, char **argv) {
 	cxxopts::Options options("estimate_t0_pid", "Estimate T0 PID after DSSD matching.");
@@ -123,9 +91,13 @@ int main(int argc, char **argv) {
 	chain1.AddFriend(&chain2, "d2");
 
 	brill::DssdMatchEvent event1;
+	int special_flag1[8];
 	brill::DssdMatchEvent event2;
+	int special_flag2[8];
 	brill::SetupInput(&chain1, event1);
+	chain1.SetBranchAddress("special_flag", special_flag1);
 	brill::SetupInput(&chain1, event2, "d2.");
+	chain1.SetBranchAddress("d2.special_flag", special_flag2);
 
 	TString output_path = TString::Format(
 		"%s/t0_pid_%s%04d_%04d.root",
@@ -136,6 +108,11 @@ int main(int argc, char **argv) {
 	);
 	TFile opf(output_path, "recreate");
 	TH2F d1d2_pid("d1d2", "D1-D2 PID", 5000, 0.0, 80000.0, 5000, 0.0, 60000.0);
+	TH2F d1_strip("d1s", "D1 strips", 128, 0, 128, 128, 0, 128);
+	TH2F d2_strip("d2s", "D2 strips", 128, 0, 128, 128, 0, 128);
+	TH2F d1d2_pid_es("d1d2es", "D1-D2 PID exclude special strips", 5000, 0.0, 80000.0, 5000, 0.0, 60000.0);
+	TH2F d1_strip_es("d1ses", "D1 strips exclude special strips", 128, 0, 128, 128, 0, 128);
+	TH2F d2_strip_es("d2ses", "D2 strips exclude special strips", 128, 0, 128, 128, 0, 128);
 
 	const long long total = chain1.GetEntries();
 	long long last_percentage = -1;
@@ -151,24 +128,20 @@ int main(int argc, char **argv) {
 		chain1.GetEntry(entry);
 		for (int i = 0; i < event1.num; ++i) {
 			for (int j = 0; j < event2.num; ++j) {
-				if (
-					abs(event1.front_strip[i] - event2.front_strip[j]) > 1
-					|| abs(event1.back_strip[i] - event2.back_strip[j]) > 1
-				) {
-					continue;
+				int d1fs = event1.front_strip[i];
+				int d1bs = event1.back_strip[i];
+				int d2fs = event2.front_strip[j];
+				int d2bs = event2.back_strip[j];
+				if (brill::t0::IsInTrackWindow(d1fs, d1bs, d2fs, d2bs)) {
+					d1d2_pid.Fill(event2.energy[j], event1.energy[i]);
+					d1_strip.Fill(d1bs, d1fs);
+					d2_strip.Fill(d2bs, d2fs);
+					if (!special_flag1[i] && !special_flag2[j]) {
+						d1d2_pid_es.Fill(event2.energy[j], event1.energy[i]);
+						d1_strip_es.Fill(event1.back_strip[i], event1.front_strip[i]);
+						d2_strip_es.Fill(event2.back_strip[j], event2.front_strip[j]);
+					}
 				}
-				d1d2_pid.Fill(event2.energy[j], event1.energy[i]);
-			}
-			if (event1.back_strip[i] != 104) continue;
-			event1.back_strip[i] = 109;
-			for (int j = 0; j < event2.num; ++j) {
-				if (
-					abs(event1.front_strip[i] - event2.front_strip[j]) > 1
-					|| abs(event1.back_strip[i] - event2.back_strip[j]) > 1
-				) {
-					continue;
-				}
-				d1d2_pid.Fill(event2.energy[j], event1.energy[i]);
 			}
 		}
 	}
@@ -176,6 +149,11 @@ int main(int argc, char **argv) {
 
 	opf.cd();
 	d1d2_pid.Write();
+	d1_strip.Write();
+	d2_strip.Write();
+	d1d2_pid_es.Write();
+	d1_strip_es.Write();
+	d2_strip_es.Write();
 	opf.Close();
 
 	return 0;
