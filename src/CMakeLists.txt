@@ -18,3 +18,4 @@ target_link_libraries(strip_combination PUBLIC normalize_extra)
 
 add_library(t0_utils t0_utils.cpp)
 target_include_directories(t0_utils PUBLIC ${PROJECT_SOURCE_DIR})
+target_link_libraries(t0_utils PUBLIC brill::core)

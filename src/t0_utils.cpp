@@ -46,4 +46,22 @@ bool IsInTrackWindow(
 	return false;
 }
 
+void GetPixelPosition(
+	const SiliconDetectorConfig *detector,
+	const int front_strip,
+	const int back_strip,
+	double &x,
+	double &y,
+	double &z
+) {
+	double tmp_x = detector->center_x_mm
+		+ detector->size_x_mm * ((front_strip+0.5)/double(detector->front_strips) - 0.5);
+	double tmp_y = detector->center_y_mm
+		+ detector->size_y_mm * ((back_strip+0.5)/double(detector->back_strips) - 0.5);
+	// rotate 135 degrees in anticlockwise
+	x = -0.5*sqrt(2.0)*(tmp_x + tmp_y);
+	y = -0.5*sqrt(2.0)*(tmp_x - tmp_y);
+	z = detector->z_mm;
+}
+
 }

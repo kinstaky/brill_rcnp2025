@@ -17,6 +17,7 @@
 #include "include/t0/dssd.h"
 #include "include/normalize_extra.h"
 #include "include/strip_combination.h"
+#include "include/t0_utils.h"
 
 inline bool AreStrips(
 	const int fs0,
@@ -281,41 +282,6 @@ void GetT0D1BackCombinations(
 	}
 }
 
-inline double StripPosition(
-	const double center,
-	const double size,
-	const int strips,
-	const double strip
-) {
-	return center + size * ((strip + 0.5) / double(strips) - 0.5);
-}
-
-void FillPhysicalPosition(
-	const brill::SiliconDetectorConfig *detector,
-	int front_strip,
-	int back_strip,
-	double &x,
-	double &y,
-	double &z
-) {
-	double tmp_x = StripPosition(
-		detector->center_x_mm,
-		detector->size_x_mm,
-		detector->front_strips,
-		front_strip
-	);
-	double tmp_y = StripPosition(
-		detector->center_y_mm,
-		detector->size_y_mm,
-		detector->back_strips,
-		back_strip
-	);
-	// rotate 135 degrees in anticlockwise
-	x = -0.5*sqrt(2.0)*(tmp_x + tmp_y);
-	y = -0.5*sqrt(2.0)*(tmp_x - tmp_y);
-	z = detector->z_mm;
-}
-
 bool IsNormalStrip(const brill::EnergyGuess &guess) {
 	return guess.type == brill::StripType::Normal
 		|| guess.type == brill::StripType::Piecewise;
@@ -525,7 +491,7 @@ void MatchT0D1WithSpecialStrips(
 			match.back_strip[match.num] = m.strip[1];
 			match.energy[match.num] = m.energy;
 			match.time[match.num] = m.time;
-			FillPhysicalPosition(
+			brill::t0::GetPixelPosition(
 				detector,
 				m.strip[0],
 				m.strip[1],
@@ -999,7 +965,7 @@ void MatchT0D2WithSpecialStrips(
 			match.back_strip[match.num] = m.strip[1];
 			match.energy[match.num] = m.energy;
 			match.time[match.num] = m.time;
-			FillPhysicalPosition(
+			brill::t0::GetPixelPosition(
 				detector,
 				m.strip[0],
 				m.strip[1],

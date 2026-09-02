@@ -248,6 +248,9 @@ int main(int argc, char **argv) {
 	brill::Reset(t0_event);
 	brill::SetupOutput(&opt, t0_event);
 
+	const brill::SiliconDetectorConfig *t0d1_config = config.FindDetector("t0d1");
+	const brill::SiliconDetectorConfig *t0d2_config = config.FindDetector("t0d2");
+
 	const long long total = chain1.GetEntries();
 	long long last_percentage = -1;
 	std::printf("Tracking T0   0%%");
@@ -263,6 +266,7 @@ int main(int argc, char **argv) {
 		brill::Reset(t0_event);
 		t0_event.run = run;
 		t0_event.entry = entry;
+		int &num = t0_event.num;
 
 		for (int i = 0; i < d1_event.num; ++i) {
 			for (int j = 0; j < d2_event.num; ++j) {
@@ -276,20 +280,30 @@ int main(int argc, char **argv) {
 				// check PID cuts
 				for (const auto &cut : d1d2_stop_cuts) {
 					if (!cut.cut->IsInside(d2_event.energy[j], d1_event.energy[i])) continue;
-					t0_event.layer[t0_event.num] = 1;
-					t0_event.flag[t0_event.num] = 0x3;
-					t0_event.charge[t0_event.num] = cut.charge;
-					t0_event.mass[t0_event.num] = cut.mass;
-					t0_event.energy[t0_event.num][0] = d1_event.energy[i];
-					t0_event.energy[t0_event.num][1] = d2_event.energy[j];
-					t0_event.time[t0_event.num][0] = d1_event.time[i];
-					t0_event.time[t0_event.num][1] = d2_event.time[j];
-					t0_event.x[t0_event.num][0] = d1_event.x[i];
-					t0_event.x[t0_event.num][1] = d2_event.x[j];
-					t0_event.y[t0_event.num][0] = d1_event.y[i];
-					t0_event.y[t0_event.num][1] = d2_event.y[j];
-					t0_event.z[t0_event.num][0] = d1_event.z[i];
-					t0_event.z[t0_event.num][1] = d2_event.z[j];
+					t0_event.layer[num] = 1;
+					t0_event.flag[num] = 0x3;
+					t0_event.charge[num] = cut.charge;
+					t0_event.mass[num] = cut.mass;
+					t0_event.energy[num][0] = d1_event.energy[i];
+					t0_event.energy[num][1] = d2_event.energy[j];
+					t0_event.time[num][0] = d1_event.time[i];
+					t0_event.time[num][1] = d2_event.time[j];
+					brill::t0::GetPixelPosition(
+						t0d1_config,
+						d1_event.front_strip[i],
+						d1_event.back_strip[j],
+						t0_event.x[num][0],
+						t0_event.y[num][0],
+						t0_event.z[num][0]
+					);
+					brill::t0::GetPixelPosition(
+						t0d2_config,
+						d2_event.front_strip[i],
+						d2_event.back_strip[j],
+						t0_event.x[num][1],
+						t0_event.y[num][1],
+						t0_event.z[num][1]
+					);
 					t0_event.last[t0_event.num][0] = i;
 					t0_event.last[t0_event.num][1] = j;
 					t0_event.num++;

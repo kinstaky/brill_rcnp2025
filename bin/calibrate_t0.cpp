@@ -16,6 +16,7 @@
 #include "include/config.h"
 #include "include/energy_calculator/delta_energy_calculator.h"
 #include "include/event/t0/t0_event.h"
+#include "include/t0/dssd.h"
 #include "include/utils.h"
 
 
@@ -80,26 +81,6 @@ private:
 	std::map<int, std::shared_ptr<brill::DeltaEnergyCalculator>> calculators_;
 };
 
-int WriteCalibrationParameters(
-	const char *path,
-	const double *parameters
-) {
-	std::filesystem::path file_path(path);
-	if (!file_path.parent_path().empty()) {
-		std::filesystem::create_directories(file_path.parent_path());
-	}
-	std::ofstream fout(path);
-	if (!fout.good()) {
-		std::cerr << "Error: Open output parameter file " << path << " failed.\n";
-		return -1;
-	}
-
-	fout << "# layer p0 p1\n";
-	for (int layer = 0; layer < kLayerCount; ++layer) {
-		fout << layer << " " << parameters[layer * 2] << " " << parameters[layer * 2 + 1] << "\n";
-	}
-	return 0;
-}
 
 int main(int argc, char **argv) {
 	cxxopts::Options options("calibrate_t0", "Calibrate T0 energies from tracked events.");
@@ -259,16 +240,22 @@ int main(int argc, char **argv) {
 			<< ", p1 = " << parameters[layer * 2 + 1]
 			<< "\n";
 	}
-
-	output_path = TString::Format(
-		"%s/t0.txt",
-		brill::JoinPath(config.root.workspace, config.paths.calibration).c_str()
-	).Data();
-	WriteCalibrationParameters(output_path, parameters);
 	// save graph
 	opf.cd();
 	gcali.Write("gcali");
 	// close files
 	opf.Close();
+
+	// save parameters
+	brill::CalibrationParameters cali_param(kLayerCount);
+	const char *cali_output = TString::Format(
+		"%s/t0.txt",
+		brill::JoinPath(config.root.workspace, config.paths.calibration).c_str()
+	).Data();
+	for (int layer = 0; layer < kLayerCount; ++layer) {
+		cali_param.p0[layer] = parameters[layer * 2];
+		cali_param.p1[layer] = parameters[layer * 2 + 1];
+	}
+	cali_param.Write(cali_output);
 	return 0;
 }

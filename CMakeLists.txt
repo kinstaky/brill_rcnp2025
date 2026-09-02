@@ -1,5 +1,5 @@
 # Require the cmake minimum version.
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 
 include(FetchContent)
 
@@ -65,6 +65,21 @@ FetchContent_Declare(
 	GIT_SHALLOW_DEPTH 1
 )
 FetchContent_MakeAvailable(eigen)
+
+# fetch Carquet for optional Parquet output
+MESSAGE("Fetching Carquet...")
+set(CARQUET_BUILD_CLI OFF CACHE BOOL "" FORCE)
+set(CARQUET_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CARQUET_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(CARQUET_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(CARQUET_BUILD_INTEROP OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+	carquet
+	GIT_REPOSITORY https://github.com/Vitruves/carquet.git
+	GIT_TAG v0.7.0
+	GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(carquet)
 
 
 # show properties
