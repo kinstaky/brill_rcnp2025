@@ -14,7 +14,7 @@
 #include <TTree.h>
 #include <TString.h>
 
-#include <carquet/carquet.h>
+#include "carquet/carquet.h"
 
 #include "external/cxxopts.hpp"
 #include "include/config.h"

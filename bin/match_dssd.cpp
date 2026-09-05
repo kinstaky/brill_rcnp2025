@@ -314,6 +314,50 @@ void MatchT0D1WithSpecialStrips(
 	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
 	const long long single_entry
 ) {
+	if (single_entry != -1) {
+		ipt->GetEntry(single_entry);
+		for (int i = 0; i < raw.front_num; ++i) {
+			raw.front_energy[i] = raw.front_integral[i];
+		}
+		for (int i = 0; i < raw.back_num; ++i) {
+			raw.back_energy[i] = raw.back_integral[i];
+		}
+
+		// search for possible single side combination
+		std::vector<std::unique_ptr<brill::StripCombination>> front_comb, back_comb;
+		GetT0D1FrontCombinations(
+			detector,
+			raw,
+			parameters,
+			extra,
+			pca_parameters,
+			front_comb
+		);
+		GetT0D1BackCombinations(
+			detector,
+			raw,
+			parameters,
+			pca_parameters,
+			back_comb
+		);
+		// match
+		for (size_t i = 0; i < front_comb.size(); ++i) {
+			for (size_t j = 0; j < back_comb.size(); ++j) {
+				std::cout << "Trying " << i << ", " << j << std::endl;
+				brill::MatchResult result = front_comb[i]->Match(
+					*back_comb[j],
+					detector->match_tolerance,
+					true
+				);
+				if (!result.valid) continue;
+				std::cout << "Valid result: "
+					<< result.energy << ", "
+					<< result.distance << ", "
+					<< result.flag << std::endl;
+			}
+		}
+		return;
+	}
 	// estimate guess distance
 	TH1F hist_distance("hd", "Distance of strips", 500, 0, 5000);
 	TH1F hist_distance_nn("hdnn", "Distance of normal-normal strips", 500, 0, 5000);
@@ -353,16 +397,10 @@ void MatchT0D1WithSpecialStrips(
 	// loop events
 	long long total = ipt->GetEntries();
 	long long last_percentage = 0;
-	if (single_entry == -1) {
-		printf("Matching   0%%");
-		fflush(stdout);
-	}
-	for (
-		long long entry = (single_entry == -1 ? 0 : single_entry);
-		entry < (single_entry == -1 ? total : single_entry + 1);
-		++entry
-	) {
-		if (single_entry == -1 && entry * 100 / total > last_percentage) {
+	printf("Matching   0%%");
+	fflush(stdout);
+	for (long long entry = 0; entry < total; ++entry) {
+		if (entry * 100 / total > last_percentage) {
 			last_percentage = entry * 100 / total;
 			printf("\b\b\b\b%3lld%%", last_percentage);
 			fflush(stdout);
@@ -448,22 +486,12 @@ void MatchT0D1WithSpecialStrips(
 		std::vector<brill::MatchResult> match_results;
 		for (size_t i = 0; i < front_comb.size(); ++i) {
 			for (size_t j = 0; j < back_comb.size(); ++j) {
-				if (single_entry != -1) {
-					std::cout << "Trying " << i << ", " << j << std::endl;
-				}
-
 				brill::MatchResult result = front_comb[i]->Match(
 					*back_comb[j],
 					detector->match_tolerance,
-					single_entry != -1
+					false
 				);
 				if (!result.valid) continue;
-				if (single_entry != -1) {
-					std::cout << "Valid result: "
-						<< result.energy << ", "
-						<< result.distance << ", "
-						<< result.flag << std::endl;
-				}
 				match_results.push_back(result);
 			}
 		}
@@ -554,7 +582,7 @@ void MatchT0D1WithSpecialStrips(
 		opt.Fill();
 		rtree.Fill();
 	}
-	if (single_entry == -1) printf("\b\b\b\b100%%\n");
+	printf("\b\b\b\b100%%\n");
 
 	// save
 	hist_distance.Write();
@@ -788,6 +816,53 @@ void MatchT0D2WithSpecialStrips(
 	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
 	const long long single_entry
 ) {
+	if (single_entry != -1) {
+		ipt->GetEntry(single_entry);
+		for (int i = 0; i < raw.front_num; ++i) {
+			raw.front_energy[i] = raw.front_integral[i];
+		}
+		for (int i = 0; i < raw.back_num; ++i) {
+			raw.back_energy[i] = raw.back_integral[i];
+		}
+
+		// search for possible single side combination
+		std::vector<std::unique_ptr<brill::StripCombination>> front_comb, back_comb;
+		GetT0D2FrontCombinations(
+			detector,
+			raw,
+			parameters,
+			extra,
+			pca_parameters,
+			front_comb
+		);
+		GetT0D2BackCombinations(
+			detector,
+			raw,
+			parameters,
+			pca_parameters,
+			back_comb
+		);
+
+		// match
+		for (size_t i = 0; i < front_comb.size(); ++i) {
+			for (size_t j = 0; j < back_comb.size(); ++j) {
+				std::cout << "Trying " << i << ", " << j << std::endl;
+
+				brill::MatchResult result = front_comb[i]->Match(
+					*back_comb[j],
+					detector->match_tolerance,
+					true
+				);
+				if (!result.valid) continue;
+				std::cout << "Valid result: "
+					<< result.energy << ", "
+					<< result.distance << ", "
+					<< result.flag << std::endl;
+			}
+		}
+		return;
+	}
+
 	// estimate guess distance
 	TH1F hist_distance("hd", "Distance of strips", 500, 0, 5000);
 	TH1F hist_distance_nn("hdnn", "Distance of normal-normal strips", 500, 0, 5000);
@@ -827,16 +902,10 @@ void MatchT0D2WithSpecialStrips(
 	// loop events
 	long long total = ipt->GetEntries();
 	long long last_percentage = 0;
-	if (single_entry == -1) {
-		printf("Matching   0%%");
-		fflush(stdout);
-	}
-	for (
-		long long entry = (single_entry == -1 ? 0 : single_entry);
-		entry < (single_entry == -1 ? total : single_entry + 1);
-		++entry
-	) {
-		if (single_entry == -1 && entry * 100 / total > last_percentage) {
+	printf("Matching   0%%");
+	fflush(stdout);
+	for (long long entry = 0; entry < total; ++entry) {
+		if (entry * 100 / total > last_percentage) {
 			last_percentage = entry * 100 / total;
 			printf("\b\b\b\b%3lld%%", last_percentage);
 			fflush(stdout);
@@ -922,22 +991,12 @@ void MatchT0D2WithSpecialStrips(
 		std::vector<brill::MatchResult> match_results;
 		for (size_t i = 0; i < front_comb.size(); ++i) {
 			for (size_t j = 0; j < back_comb.size(); ++j) {
-				if (single_entry != -1) {
-					std::cout << "Trying " << i << ", " << j << std::endl;
-				}
-
 				brill::MatchResult result = front_comb[i]->Match(
 					*back_comb[j],
 					detector->match_tolerance,
-					single_entry != -1
+					false
 				);
 				if (!result.valid) continue;
-				if (single_entry != -1) {
-					std::cout << "Valid result: "
-						<< result.energy << ", "
-						<< result.distance << ", "
-						<< result.flag << std::endl;
-				}
 				match_results.push_back(result);
 			}
 		}
@@ -1026,7 +1085,7 @@ void MatchT0D2WithSpecialStrips(
 		opt.Fill();
 		rtree.Fill();
 	}
-	if (single_entry == -1) printf("\b\b\b\b100%%\n");
+	printf("\b\b\b\b100%%\n");
 
 	// save
 	hist_distance.Write();
@@ -1208,15 +1267,18 @@ int main(int argc, char **argv) {
 			normalize_run
 		).Data();
 
-		// setup output
-		TString output_filename = TString::Format(
-			"%s/%s_%s%04d.root",
-			match_dir.c_str(),
-			detector.c_str(),
-			brill::TriggerInfix(config.root.trigger).c_str(),
-			run
-		);
-		TFile opf(output_filename, "recreate");
+		TFile *opf = nullptr;
+		if (single_entry == -1) {
+			// setup output
+			TString output_filename = TString::Format(
+				"%s/%s_%s%04d.root",
+				match_dir.c_str(),
+				detector.c_str(),
+				brill::TriggerInfix(config.root.trigger).c_str(),
+				run
+			);
+			opf = new TFile(output_filename, "recreate");
+		}
 
 		if (detector == "t0d1") {
 			brill::T0D1ExtraNormalizeParameters extra_parameters;
@@ -1277,7 +1339,10 @@ int main(int argc, char **argv) {
 
 		// close files
 		ipf.Close();
-		opf.Close();
+		if (single_entry == -1) {
+			opf->Close();
+			delete opf;
+		}
 	}
 
 	return 0;
