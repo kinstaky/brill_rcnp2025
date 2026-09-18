@@ -1,3 +1,5 @@
+add_subdirectory(event)
+
 add_library(pca pca.cpp)
 target_include_directories(pca PUBLIC ${PROJECT_SOURCE_DIR})
 target_link_libraries(pca PUBLIC Eigen3::Eigen)

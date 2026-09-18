@@ -11,3 +11,10 @@ target_link_libraries(
 	PRIVATE
 	brill::core ROOT::Graf ROOT::Tree
 )
+
+add_executable(estimate_gagg_straight estimate_gagg_straight.cpp)
+target_link_libraries(
+	estimate_gagg_straight
+	PRIVATE
+	brill::core ROOT::Graf ROOT::Tree gagg_event brill::t0
+)
