@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
 		("h,help", "Print help information.")
 		("r,run", "Start run number.", cxxopts::value<int>(), "run")
 		("e,end-run", "End run number.", cxxopts::value<int>(), "run")
+		("p,particle", "Be or He", cxxopts::value<std::string>(), "particle")
 		(
 			"c,config",
 			"Config file path.",
@@ -59,6 +60,16 @@ int main(int argc, char **argv) {
 	if (run_letter == '?') {
 		std::cerr << "Error: Invalid run range " << run << "-" << end_run << ".\n";
 		return 1;
+	}
+
+	std::string particle = "Be";
+	if (result.count("particle")) {
+		if (result["particle"].as<std::string>() == "He") {
+			particle = "4He";
+		} else if (result["particle"].as<std::string>() != "Be") {
+			std::cerr << "Error: Invalid particle " << result["particle"].as<std::string>() << ".\n";
+			return 2;
+		}
 	}
 
 	const std::string match_dir = brill::JoinPath(config.root.workspace, config.paths.match);
@@ -111,7 +122,7 @@ int main(int argc, char **argv) {
 		brill::ParseCutFile(
 			config.root.workspace,
 			"gagg_" + std::to_string(i) + run_letter,
-			"Be",
+			particle,
 			false,
 			be_cuts[i]
 		);
@@ -208,9 +219,10 @@ int main(int argc, char **argv) {
 
 	// save parameters
 	TString cali_output = TString::Format(
-		"%s/gagg_layer1_%c.txt",
+		"%s/gagg_layer1_%c_%s.txt",
 		cali_dir.c_str(),
-		run_letter
+		run_letter,
+		particle.c_str()
 	);
 	cali_param.Write(cali_output.Data());
 	return 0;
