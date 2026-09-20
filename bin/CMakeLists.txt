@@ -20,16 +20,22 @@ target_link_libraries(
 	brill::core brill::t0 t0_utils ROOT::Graf Eigen3::Eigen normalize_extra strip_combination
 )
 
-add_executable(track_t0 track_t0.cpp)
-target_link_libraries(
-	track_t0 PRIVATE
-	brill::core brill::t0 t0_utils ROOT::Graf
-)
-
 add_executable(calibrate_t0 calibrate_t0.cpp)
 target_link_libraries(
 	calibrate_t0 PRIVATE
 	brill::core brill::t0 brill::energy_calculator ROOT::Graf t0_utils
+)
+
+add_executable(calibrate_gagg calibrate_gagg.cpp)
+target_link_libraries(
+	calibrate_gagg PRIVATE
+	brill::core ROOT::Graf gagg_event brill::t0 t0_utils brill::energy_calculator
+)
+
+add_executable(track_t0 track_t0.cpp)
+target_link_libraries(
+	track_t0 PRIVATE
+	brill::core brill::t0 t0_utils ROOT::Graf
 )
 
 add_executable(rebuild_t0 rebuild_t0.cpp)

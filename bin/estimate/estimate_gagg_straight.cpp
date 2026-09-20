@@ -16,6 +16,7 @@
 #include "include/utils.h"
 #include "include/event/t0/dssd_match_event.h"
 #include "include/event/gagg_event.h"
+#include "include/t0_utils.h"
 
 struct StraightSlice {
 	std::string key;
@@ -39,21 +40,6 @@ double PidFit(double *x, double *par) {
 		std::sqrt(std::pow(x[0], 2.0) + 4.0 * par[0] * std::pow(par[1] * x[0] - par[2], 2.0))
 		- x[0]
 	);
-}
-
-inline bool CheckStripIndex(int strip, int index) {
-	if (index == 0 && strip >= 0 && strip <= 27) return true;
-	else if (index == 1 && strip >= 26 && strip <= 51) return true;
-	else if (index == 2 && strip >= 50 && strip <= 75) return true;
-	else if (index == 3 && strip >= 74 && strip <= 99) return true;
-	else if (index == 4 && strip >= 98 && strip <= 127) return true;
-	return false;
-}
-
-inline bool IsInTrackWindow(int d2fs, int d2bs, int index) {
-	int findex = 4 - (index / 5);
-	int bindex = index % 5;
-	return CheckStripIndex(d2fs, findex) && CheckStripIndex(d2bs, bindex);
 }
 
 int FitSlice(StraightSlice &slice) {
@@ -344,7 +330,7 @@ int main(int argc, char **argv) {
 		for (int i = 0; i < d2_event.num; ++i) {
 			for (int j = 0; j < gagg_event.num; ++j) {
 				if (gagg_event.index[j] >= 25) continue;
-				if (!IsInTrackWindow(
+				if (!brill::t0::IsInTrackWindow(
 					d2_event.front_strip[i],
 					d2_event.back_strip[i],
 					gagg_event.index[j]
@@ -398,7 +384,7 @@ int main(int argc, char **argv) {
 		for (int i = 0; i < d2_event.num; ++i) {
 			for (int j = 0; j < gagg_event.num; ++j) {
 				if (gagg_event.index[j] >= 25) continue;
-				if (!IsInTrackWindow(
+				if (!brill::t0::IsInTrackWindow(
 					d2_event.front_strip[i],
 					d2_event.back_strip[i],
 					gagg_event.index[j]

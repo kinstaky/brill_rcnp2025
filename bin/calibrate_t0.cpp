@@ -19,7 +19,6 @@
 #include "include/t0/dssd.h"
 #include "include/utils.h"
 
-
 constexpr int kLayerCount = 2;
 
 void PrintUsage(const cxxopts::Options &options) {
@@ -88,7 +87,6 @@ int main(int argc, char **argv) {
 		("h,help", "Print help information.")
 		("r,run", "Start run number.", cxxopts::value<int>(), "run")
 		("e,end-run", "End run number.", cxxopts::value<int>(), "run")
-		("t,trigger", "Trigger type.", cxxopts::value<std::string>(), "trigger")
 		(
 			"c,config",
 			"Config file path.",
@@ -111,9 +109,6 @@ int main(int argc, char **argv) {
 	if (config.Load(result["config"].as<std::string>())) {
 		return 1;
 	}
-	if (result.count("trigger")) {
-		config.root.trigger = result["trigger"].as<std::string>();
-	}
 
 	const int run = result["run"].as<int>();
 	const int end_run = result.count("end-run") ? result["end-run"].as<int>() : run;
@@ -133,7 +128,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	const std::string trigger_infix = brill::TriggerInfix(config.root.trigger);
 	const std::string tele_dir = brill::JoinPath(config.root.workspace, config.paths.telescope);
 
 	TChain chain("tree");
@@ -141,9 +135,8 @@ int main(int argc, char **argv) {
 	for (int current_run = run; current_run <= end_run; ++current_run) {
 		if (config.IsJumpRun(current_run)) continue;
 		std::string path = TString::Format(
-			"%s/t0_%s%04d.root",
+			"%s/t0_%04d.root",
 			tele_dir.c_str(),
-			trigger_infix.c_str(),
 			current_run
 		).Data();
 		if (!std::filesystem::exists(path)) {
@@ -162,9 +155,8 @@ int main(int argc, char **argv) {
 	brill::SetupInput(&chain, event);
 
 	TString output_path = TString::Format(
-		"%s/t0_%s%04d_%04d.root",
+		"%s/t0_%04d_%04d.root",
 		brill::JoinPath(config.root.workspace, config.paths.calibration).c_str(),
-		trigger_infix.c_str(),
 		run,
 		end_run
 	);

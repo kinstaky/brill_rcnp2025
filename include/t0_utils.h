@@ -1,8 +1,11 @@
 #pragma once
 
+#include <cmath>
 #include "include/config.h"
 
 namespace brill::t0 {
+
+constexpr int kMaxGAGG = 64;
 
 /// @brief Check whether strips in D1D2 are in window
 /// @param[inout] d1fs D1 front strip, output corrected result
@@ -32,5 +35,29 @@ void GetPixelPosition(
 	double &y,
 	double &z
 );
+
+/// @brief Check whether T0D2 and GAGG are in window
+/// @param[in] d2fs T0D2 front strip
+/// @param[in] d2bs T0D2 back strip
+/// @param[in] index GAGG index
+/// @returns is in window or not
+bool IsInTrackWindow(const int d2fs, const int d2bs, const int index);
+
+class GAGGCalibrationParameters {
+public:
+	GAGGCalibrationParameters(const int counts);
+
+	inline double CaliEnergy(const int index, const double raw_energy) const {
+		return p0[index] + p1[index]*raw_energy + p2[index]*exp(-raw_energy/p3[index]);
+	}
+	int Write(const std::string &path) const;
+	int Read(const std::string &path);
+
+	int size;
+	double p0[kMaxGAGG];
+	double p1[kMaxGAGG];
+	double p2[kMaxGAGG];
+	double p3[kMaxGAGG];
+};
 
 }
