@@ -58,4 +58,16 @@ public:
 	double p3[kMaxGAGG];
 };
 
+class GAGGStraightParameters {
+public:
+	GAGGStraightParameters() = default;
+
+	double FixedEnergy(const double d2_energy, const double gagg_energy) const;
+	int Write(const std::string &path) const;
+	int Read(const std::string &path);
+
+	double a;
+	double b;
+};
+
 }

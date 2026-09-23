@@ -30,21 +30,6 @@ double PidFit(double *x, double *par) {
 	);
 }
 
-void FillGraphs(
-	const double a,
-	const double b,
-	const double de,
-	const double e,
-	TH2F &pid,
-	TH2F &spid,
-	TH1F &epid
-) {
-	double ef = std::sqrt(de * e + a * de * de) + b * e;
-	pid.Fill(e, de);
-	spid.Fill(e, ef);
-	epid.Fill(ef);
-}
-
 int main(int argc, char **argv) {
 	cxxopts::Options options("estimate_t0_straight", "Estimate T0 straight PID.");
 	options.add_options()
@@ -195,6 +180,9 @@ int main(int argc, char **argv) {
 			1000, 0, 300.0
 		);
 	}
+	TH2F pid("pid", "PID of all GAGG", 1000, 0, gagg_max, 1000, 0, 300.0);
+	TH2F spid("spid", "straight PID of all GAGG", 1000, 0, gagg_max, 1000, 0, 300.0);
+	TH1F epid("epid", "Straight energy of all GAGG", 1000, 0, 300.0);
 
 	const long long total = chain_d2.GetEntries();
 	long long last_percentage = -1;
@@ -278,15 +266,13 @@ int main(int argc, char **argv) {
 				double gagg_energy = d2_event.run < 1079
 					? cali_param_a.CaliEnergy(gagg_event.index[j], gagg_event.amplitude[j])
 					: cali_param_b.CaliEnergy(gagg_event.index[j], gagg_event.amplitude[j]);
-				FillGraphs(
-					a,
-					b,
-					d2_energy,
-					gagg_energy,
-					pids[gagg_event.index[j]],
-					spids[gagg_event.index[j]],
-					epids[gagg_event.index[j]]
-				);
+				double ef = std::sqrt(d2_energy*gagg_energy + a*d2_energy*d2_energy) + b*gagg_energy;
+				pid.Fill(gagg_energy, d2_energy);
+				spid.Fill(gagg_energy, ef);
+				epid.Fill(ef);
+				pids[gagg_event.index[j]].Fill(gagg_energy, d2_energy);
+				spids[gagg_event.index[j]].Fill(gagg_energy, ef);
+				epids[gagg_event.index[j]].Fill(ef);
 			}
 		}
 	}
@@ -297,7 +283,19 @@ int main(int argc, char **argv) {
 	for (auto &hist : pids) hist.Write();
 	for (auto &hist : spids) hist.Write();
 	for (auto &hist : epids) hist.Write();
+	pid.Write();
+	spid.Write();
+	epid.Write();
 	opf.Close();
+
+	brill::t0::GAGGStraightParameters straight_param;
+	straight_param.a = a;
+	straight_param.b = b;
+	straight_param.Write(TString::Format(
+		"%s/gagg_straight_%s.txt",
+		cali_dir.c_str(),
+		particle.c_str()
+	).Data());
 
 	return 0;
 }

@@ -35,7 +35,7 @@ target_link_libraries(
 add_executable(track_t0 track_t0.cpp)
 target_link_libraries(
 	track_t0 PRIVATE
-	brill::core brill::t0 t0_utils ROOT::Graf
+	brill::core brill::t0 t0_utils ROOT::Graf gagg_event
 )
 
 add_executable(rebuild_t0 rebuild_t0.cpp)

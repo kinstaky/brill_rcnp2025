@@ -145,4 +145,31 @@ int GAGGCalibrationParameters::Read(const std::string &path) {
 	return 0;
 }
 
+double GAGGStraightParameters::FixedEnergy(const double d2_energy, const double gagg_energy) const {
+	return std::sqrt(d2_energy*gagg_energy + a*d2_energy*d2_energy) + b*gagg_energy;
+}
+
+int GAGGStraightParameters::Write(const std::string &path) const {
+	std::ofstream fout(path);
+	if (!fout.good()) {
+		std::cerr << "Errro: Write GAGG straight parameters to " << path << " failed.\n";
+		return -1;
+	}
+	fout << a << " " << b << "\n";
+	fout.close();
+	return 0;
+}
+
+int GAGGStraightParameters::Read(const std::string &path) {
+	std::ifstream fin(path);
+	if (!fin.good()) {
+		std::cerr << "Error: Read GAGG straight parameters from " << path << " failed.\n";
+		return -1;
+	}
+	fin >> a >> b;
+	fin.close();
+	return 0;
+}
+
+
 }
