@@ -93,6 +93,10 @@ GAGGCalibrationParameters::GAGGCalibrationParameters(const int counts)
 	}
 }
 
+double GAGGCalibrationParameters::CaliEnergy(const int index, const double raw_energy) const {
+	return p0[index] + p1[index]*raw_energy + p2[index]*exp(-raw_energy/p3[index]);
+}
+
 int GAGGCalibrationParameters::Write(const std::string &path) const {
 	std::filesystem::path file_path(path);
 	if (!file_path.parent_path().empty()) {
@@ -129,7 +133,8 @@ int GAGGCalibrationParameters::Read(const std::string &path) {
 		std::istringstream iss(line);
 		int index = -1;
 		double value[4];
-		if (!(iss >> index >> value[0] >> value[1] >> value[2] >> value[3])) continue;
+		iss >> index;
+		for (int i = 0; i < 4; ++i) iss >> value[i];
 		if (index < 0 || index >= size) continue;
 		p0[index] = value[0];
 		p1[index] = value[1];

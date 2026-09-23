@@ -1034,6 +1034,8 @@ void MatchT0D2WithSpecialStrips(
 			);
 			++match.num;
 		}
+		match.run = raw.run;
+		match.entry = raw.entry;
 
 		// have a look at the distribution of residual events
 		residual_event.front_num = 0;
@@ -1114,7 +1116,6 @@ int main(int argc, char **argv) {
 	options.add_options()
 		("h,help", "Print help information.")
 		("r,run", "Run number.", cxxopts::value<int>(), "run")
-		("t,trigger", "Trigger type.", cxxopts::value<std::string>(), "trigger")
 		(
 			"c,config",
 			"Config file path.",
@@ -1176,9 +1177,6 @@ int main(int argc, char **argv) {
 		std::cerr << "Error: Load config failed." << std::endl;
 		return -3;
 	}
-	if (result.count("trigger")) {
-		config.root.trigger = result["trigger"].as<std::string>();
-	}
 	const int run = result["run"].as<int>();
 	if (config.IsJumpRun(run)) {
 		std::cerr << "Info: Run " << run << " is jump run." << std::endl;
@@ -1229,10 +1227,9 @@ int main(int argc, char **argv) {
 
 		// setup input
 		TString input_filename = TString::Format(
-			"%s/%s_%s%04d.root",
+			"%s/%s_%04d.root",
 			brill::JoinPath(config.root.workspace, config.paths.ingot).c_str(),
 			detector.c_str(),
-			brill::TriggerInfix(config.root.trigger).c_str(),
 			run
 		);
 		TFile ipf(input_filename, "read");
@@ -1271,10 +1268,9 @@ int main(int argc, char **argv) {
 		if (single_entry == -1) {
 			// setup output
 			TString output_filename = TString::Format(
-				"%s/%s_%s%04d.root",
+				"%s/%s_%04d.root",
 				match_dir.c_str(),
 				detector.c_str(),
-				brill::TriggerInfix(config.root.trigger).c_str(),
 				run
 			);
 			opf = new TFile(output_filename, "recreate");

@@ -47,9 +47,7 @@ class GAGGCalibrationParameters {
 public:
 	GAGGCalibrationParameters(const int counts);
 
-	inline double CaliEnergy(const int index, const double raw_energy) const {
-		return p0[index] + p1[index]*raw_energy + p2[index]*exp(-raw_energy/p3[index]);
-	}
+	double CaliEnergy(const int index, const double raw_energy) const;
 	int Write(const std::string &path) const;
 	int Read(const std::string &path);
 

@@ -18,3 +18,10 @@ target_link_libraries(
 	PRIVATE
 	brill::core ROOT::Graf ROOT::Tree gagg_event brill::t0 t0_utils
 )
+
+add_executable(estimate_gagg_calibration estimate_gagg_calibration.cpp)
+target_link_libraries(
+	estimate_gagg_calibration
+	PRIVATE
+	brill::core ROOT::Graf ROOT::Tree gagg_event brill::t0 t0_utils
+)

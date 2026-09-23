@@ -129,16 +129,18 @@ int main(int argc, char **argv) {
 	}
 
 	// initialize delta energy calculator
-	brill::DeltaEnergyCalculator be12_calculator(config, 4, 12);
-	be12_calculator.SetMaxLastLayerEnergy(500.0);
+	std::unique_ptr<brill::DeltaEnergyCalculator> particle_calculator = particle == "Be"
+		? std::make_unique<brill::DeltaEnergyCalculator>(config, 4, 12, 500)
+		: std::make_unique<brill::DeltaEnergyCalculator>(config, 2, 4, 500);
 
 	// load T0 silicon calibration parameters
 	brill::CalibrationParameters t0_cali_params(2);
 	t0_cali_params.Read(cali_dir + "/t0.txt");
 
 	TString output_path = TString::Format(
-		"%s/gagg_%04d_%04d.root",
+		"%s/gagg_%s_%04d_%04d.root",
 		cali_dir.c_str(),
+		particle.c_str(),
 		run,
 		end_run
 	);
@@ -174,7 +176,7 @@ int main(int argc, char **argv) {
 				)) continue;
 				double x = gagg_event.amplitude[j];
 				double de = t0_cali_params.p0[1] + t0_cali_params.p1[1] * event.energy[i];
-				double y = be12_calculator.Energy(1, de);
+				double y = particle_calculator->Energy(1, de);
 				gcali[gagg_event.index[j]].AddPoint(x, y);
 			}
 		}
@@ -182,31 +184,82 @@ int main(int argc, char **argv) {
 	std::printf("\b\b\b\b100%%\n");
 
 	// fit
-	for (int i = 0; i < 25; ++i) {
-		double fit_range = i < 16
-			? (run_letter == 'a' ? 10000.0 : 2000.0)
-			: (run_letter == 'a' ? 25000.0 : 5000.0);
-		if (i == 18) {
-			fit_range = run_letter == 'a' ? 2500.0 : 600.0;
+	if (particle == "Be") {
+		constexpr double fit_range_a[] = {
+			10000.0, 10000.0, 10000.0, 10000.0,
+			10000.0, 10000.0, 10000.0, 10000.0,
+			10000.0, 10000.0, 10000.0, 10000.0,
+			10000.0, 10000.0, 10000.0, 10000.0,
+			25000.0, 25000.0, 2500.0, 25000.0,
+			25000.0, 25000.0, 25000.0, 25000.0,
+			25000.0
+		};
+		constexpr double fit_range_b[] = {
+			2000.0, 2000.0, 2000.0, 2000.0,
+			2000.0, 2000.0, 2000.0, 2000.0,
+			2000.0, 2000.0, 2000.0, 2000.0,
+			2000.0, 2000.0, 2000.0, 2000.0,
+			5000.0, 5000.0, 600.0, 5000.0,
+			5000.0, 5000.0, 5000.0, 5000.0,
+			5000.0
+		};
+		for (int i = 0; i < 25; ++i) {
+			double fit_range = run_letter == 'a' ? fit_range_a[i] : fit_range_b[i];
+			std::cout << "===========" << "Fitting GAGG " << i << "===========" << std::endl;
+			TF1 flinear(TString::Format("fl%d", i), "pol1", 0.0, fit_range);
+			flinear.SetLineColor(kBlue);
+			gcali[i].Fit(&flinear, "R+");
+			TF1 fcali(TString::Format("f%d", i), "[0]+[1]*x+[2]*exp(-x/[3])", 0.0, fit_range);
+			fcali.SetParameter(0, flinear.GetParameter(0));
+			fcali.SetParameter(1, flinear.GetParameter(1));
+			fcali.SetParameter(2, -5.0);
+			fcali.SetParameter(3, fit_range/20.0);
+			if (run_letter == 'a' && i == 4) {
+				fcali.SetParameter(2, -3.8);
+				fcali.SetParameter(3, fit_range);
+			}
+			gcali[i].Fit(&fcali, "R+ ROB=0.7");
+			cali_param.p0[i] = fcali.GetParameter(0);
+			cali_param.p1[i] = fcali.GetParameter(1);
+			cali_param.p2[i] = fcali.GetParameter(2);
+			cali_param.p3[i] = fcali.GetParameter(3);
 		}
-		std::cout << "===========" << "Fitting GAGG " << i << "===========" << std::endl;
-		TF1 flinear(TString::Format("fl%d", i), "pol1", 0.0, fit_range);
-		flinear.SetLineColor(kBlue);
-		gcali[i].Fit(&flinear, "R+");
-		TF1 fcali(TString::Format("f%d", i), "[0]+[1]*x+[2]*exp(-x/[3])", 0.0, fit_range);
-		fcali.SetParameter(0, flinear.GetParameter(0));
-		fcali.SetParameter(1, flinear.GetParameter(1));
-		fcali.SetParameter(2, -5.0);
-		fcali.SetParameter(3, fit_range/20.0);
-		if (run_letter == 'a' && i == 4) {
-			fcali.SetParameter(2, -3.8);
-			fcali.SetParameter(3, fit_range);
+	} else if (particle == "4He") {
+		constexpr double fit_range_a[] = {
+			16000.0, 16000.0, 16000.0, 16000.0,
+			16000.0, 18000.0, 16000.0, 16000.0,
+			16000.0, 16000.0, 16000.0, 16000.0,
+			16000.0, 16000.0, 16000.0, 16000.0,
+			54000.0, 54000.0, 3000.0, 54000.0,
+			54000.0, 54000.0, 54000.0, 54000.0,
+			54000.0
+		};
+		constexpr double fit_range_b[] = {
+			5500.0, 5500.0, 5500.0, 5500.0,
+			5500.0, 5500.0, 3000.0, 5500.0,
+			5500.0, 5500.0, 5500.0, 5500.0,
+			5500.0, 5500.0, 5500.0, 5500.0,
+			16000.0, 16000.0, 1800.0, 18000.0,
+			16000.0, 16000.0, 16000.0, 16000.0,
+			16000.0
+		};
+		for (int i = 0; i < 25; ++i) {
+			double fit_range = run_letter == 'a' ? fit_range_a[i] : fit_range_b[i];
+			std::cout << "===========" << "Fitting GAGG " << i << "===========" << std::endl;
+			TF1 flinear(TString::Format("fl%d", i), "pol1", 0.0, fit_range);
+			flinear.SetLineColor(kBlue);
+			gcali[i].Fit(&flinear, "R+");
+			TF1 fcali(TString::Format("f%d", i), "[0]+[1]*x+[2]*exp(-x/[3])", 0.0, fit_range);
+			fcali.SetParameter(0, flinear.GetParameter(0));
+			fcali.SetParameter(1, flinear.GetParameter(1));
+			fcali.SetParameter(2, -5.0);
+			fcali.SetParameter(3, fit_range/20.0);
+			gcali[i].Fit(&fcali, "R+ ROB=0.9");
+			cali_param.p0[i] = fcali.GetParameter(0);
+			cali_param.p1[i] = fcali.GetParameter(1);
+			cali_param.p2[i] = fcali.GetParameter(2);
+			cali_param.p3[i] = fcali.GetParameter(3);
 		}
-		gcali[i].Fit(&fcali, "R+ ROB=0.7");
-		cali_param.p0[i] = fcali.GetParameter(0);
-		cali_param.p1[i] = fcali.GetParameter(1);
-		cali_param.p2[i] = fcali.GetParameter(2);
-		cali_param.p3[i] = fcali.GetParameter(3);
 	}
 
 	// save graph
