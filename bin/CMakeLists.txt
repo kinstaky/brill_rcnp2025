@@ -8,6 +8,7 @@ target_link_libraries(
 )
 
 add_executable(normalize_extra_t0d2 normalize_extra_t0d2.cpp)
+target_include_directories(normalize_extra_t0d2 SYSTEM PRIVATE ${eigen_SOURCE_DIR})
 target_link_libraries(
 	normalize_extra_t0d2
 	PRIVATE
