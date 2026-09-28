@@ -48,11 +48,21 @@ endif()
 find_package(ROOT 6.20 CONFIG REQUIRED COMPONENTS Core RIO Tree Hist Graf Minuit GenVector MathCore)
 
 # fetch brill core
+# use -DBRILL_LOCAL_SOURCE_DIR=/path/to/brill_core for local library
 MESSAGE("Fetching brill core...")
-FetchContent_Declare(
-	brill
-	SOURCE_DIR ../../brill_core
-)
+set(BRILL_LOCAL_SOURCE_DIR "" CACHE PATH "Use local brill_core source instead of Git")
+if (BRILL_LOCAL_SOURCE_DIR)
+	FetchContent_Declare(
+		brill
+		SOURCE_DIR "${BRILL_LOCAL_SOURCE_DIR}"
+	)
+else()
+	FetchContent_Declare(
+		brill
+		GIT_REPOSITORY https://github.com/kinstaky/brill_core.git
+		GIT_TAG master
+	)
+endif()
 FetchContent_MakeAvailable(brill)
 
 # fetch Eigen
