@@ -14,11 +14,8 @@
 #include <TTree.h>
 #include <TString.h>
 
-#include "carquet/carquet.h"
-
 #include "external/cxxopts.hpp"
 #include "include/config.h"
-// #include "include/energy_calculator/lost_energy_calculator.h"
 #include "include/event/particle_event.h"
 #include "include/event/t0/t0_event.h"
 #include "include/t0/dssd.h"
@@ -135,93 +132,93 @@ bool CompareParticleEntry(const ParticleEntry &left, const ParticleEntry &right)
 	return left.last < right.last;
 }
 
-bool CheckCarquetStatus(carquet_status_t status, const char *operation) {
-	if (status == CARQUET_OK) return true;
-	std::cerr
-		<< "Error: " << operation << " failed: "
-		<< carquet_status_string(status) << ".\n";
-	return false;
-}
+// bool CheckCarquetStatus(carquet_status_t status, const char *operation) {
+// 	if (status == CARQUET_OK) return true;
+// 	std::cerr
+// 		<< "Error: " << operation << " failed: "
+// 		<< carquet_status_string(status) << ".\n";
+// 	return false;
+// }
 
-carquet_schema_t *CreateParquetSchema() {
-	carquet_error_t error{};
-	carquet_error_init(&error);
-	carquet_schema_t *schema = carquet_schema_create(&error);
-	if (!schema) {
-		std::cerr << "Error: Create parquet schema failed: "
-			<< error.message << ".\n";
-		return nullptr;
-	}
+// carquet_schema_t *CreateParquetSchema() {
+// 	carquet_error_t error{};
+// 	carquet_error_init(&error);
+// 	carquet_schema_t *schema = carquet_schema_create(&error);
+// 	if (!schema) {
+// 		std::cerr << "Error: Create parquet schema failed: "
+// 			<< error.message << ".\n";
+// 		return nullptr;
+// 	}
 
-	const std::array<std::pair<const char *, carquet_physical_type_t>, 11> columns = {{
-		{"run", CARQUET_PHYSICAL_INT32},
-		{"event_id", CARQUET_PHYSICAL_INT32},
-		{"multiplicity", CARQUET_PHYSICAL_INT32},
-		{"index", CARQUET_PHYSICAL_INT32},
-		{"charge", CARQUET_PHYSICAL_INT32},
-		{"mass", CARQUET_PHYSICAL_INT32},
-		{"energy", CARQUET_PHYSICAL_DOUBLE},
-		{"x", CARQUET_PHYSICAL_DOUBLE},
-		{"y", CARQUET_PHYSICAL_DOUBLE},
-		{"z", CARQUET_PHYSICAL_DOUBLE},
-		{"stop", CARQUET_PHYSICAL_BOOLEAN},
-	}};
-	for (const auto &[name, type] : columns) {
-		if (!CheckCarquetStatus(
-			carquet_schema_add_column(
-				schema,
-				name,
-				type,
-				nullptr,
-				CARQUET_REPETITION_REQUIRED,
-				0,
-				0
-			),
-			"Add parquet column"
-		)) {
-			carquet_schema_free(schema);
-			return nullptr;
-		}
-	}
-	return schema;
-}
+// 	const std::array<std::pair<const char *, carquet_physical_type_t>, 11> columns = {{
+// 		{"run", CARQUET_PHYSICAL_INT32},
+// 		{"event_id", CARQUET_PHYSICAL_INT32},
+// 		{"multiplicity", CARQUET_PHYSICAL_INT32},
+// 		{"index", CARQUET_PHYSICAL_INT32},
+// 		{"charge", CARQUET_PHYSICAL_INT32},
+// 		{"mass", CARQUET_PHYSICAL_INT32},
+// 		{"energy", CARQUET_PHYSICAL_DOUBLE},
+// 		{"x", CARQUET_PHYSICAL_DOUBLE},
+// 		{"y", CARQUET_PHYSICAL_DOUBLE},
+// 		{"z", CARQUET_PHYSICAL_DOUBLE},
+// 		{"stop", CARQUET_PHYSICAL_BOOLEAN},
+// 	}};
+// 	for (const auto &[name, type] : columns) {
+// 		if (!CheckCarquetStatus(
+// 			carquet_schema_add_column(
+// 				schema,
+// 				name,
+// 				type,
+// 				nullptr,
+// 				CARQUET_REPETITION_REQUIRED,
+// 				0,
+// 				0
+// 			),
+// 			"Add parquet column"
+// 		)) {
+// 			carquet_schema_free(schema);
+// 			return nullptr;
+// 		}
+// 	}
+// 	return schema;
+// }
 
-bool WriteParquetRows(
-	carquet_writer_t *writer,
-	const brill::T0Event &input_event,
-	const brill::ParticleEvent &output_event
-) {
-	const int count = output_event.num;
-	if (count == 0) return true;
+// bool WriteParquetRows(
+// 	carquet_writer_t *writer,
+// 	const brill::T0Event &input_event,
+// 	const brill::ParticleEvent &output_event
+// ) {
+// 	const int count = output_event.num;
+// 	if (count == 0) return true;
 
-	std::array<int32_t, 8> run;
-	std::array<int32_t, 8> event_id;
-	std::array<int32_t, 8> multiplicity;
-	std::array<int32_t, 8> index;
-	std::array<int32_t, 8> charge;
-	std::array<int32_t, 8> mass;
-	for (int i = 0; i < count; ++i) {
-		run[i] = input_event.run;
-		event_id[i] = input_event.entry;
-		multiplicity[i] = count;
-		index[i] = i;
-		charge[i] = output_event.charge[i];
-		mass[i] = output_event.mass[i];
-	}
+// 	std::array<int32_t, 8> run;
+// 	std::array<int32_t, 8> event_id;
+// 	std::array<int32_t, 8> multiplicity;
+// 	std::array<int32_t, 8> index;
+// 	std::array<int32_t, 8> charge;
+// 	std::array<int32_t, 8> mass;
+// 	for (int i = 0; i < count; ++i) {
+// 		run[i] = input_event.run;
+// 		event_id[i] = input_event.entry;
+// 		multiplicity[i] = count;
+// 		index[i] = i;
+// 		charge[i] = output_event.charge[i];
+// 		mass[i] = output_event.mass[i];
+// 	}
 
-	const std::array<const void *, 11> values = {{
-		event_id.data(), multiplicity.data(), run.data(), index.data(),
-		charge.data(), mass.data(), output_event.energy, output_event.x,
-		output_event.y, output_event.z, output_event.stop,
-	}};
-	for (int column = 0; column < int(values.size()); ++column) {
-		if (!CheckCarquetStatus(
-			carquet_writer_write_batch(writer, column, values[column], count, nullptr, nullptr),
-			"Write parquet batch"
-		)) return false;
-	}
-	return true;
-}
+// 	const std::array<const void *, 11> values = {{
+// 		event_id.data(), multiplicity.data(), run.data(), index.data(),
+// 		charge.data(), mass.data(), output_event.energy, output_event.x,
+// 		output_event.y, output_event.z, output_event.stop,
+// 	}};
+// 	for (int column = 0; column < int(values.size()); ++column) {
+// 		if (!CheckCarquetStatus(
+// 			carquet_writer_write_batch(writer, column, values[column], count, nullptr, nullptr),
+// 			"Write parquet batch"
+// 		)) return false;
+// 	}
+// 	return true;
+// }
 
 int main(int argc, char **argv) {
 	cxxopts::Options options("rebuild_t0", "Rebuild T0 particles from tracked events.");
@@ -229,11 +226,6 @@ int main(int argc, char **argv) {
 		("h,help", "Print help information.")
 		("r,run", "Run number.", cxxopts::value<int>(), "run")
 		("t,trigger", "Trigger type.", cxxopts::value<std::string>(), "trigger")
-		(
-			"parquet",
-			"Also save to parquet file.",
-			cxxopts::value<bool>()->default_value("false")->implicit_value("true")
-		)
 		(
 			"c,config",
 			"Config file path.",
@@ -310,30 +302,30 @@ int main(int argc, char **argv) {
 	brill::Reset(output_event);
 	brill::SetupOutput(&opt, output_event);
 
-	carquet_schema_t *parquet_schema = nullptr;
-	carquet_writer_t *parquet_writer = nullptr;
-	if (result["parquet"].as<bool>()) {
-		const std::string parquet_path = TString::Format(
-			"%s/t0_%s%04d.par",
-			particle_dir.c_str(),
-			trigger_infix.c_str(),
-			run
-		).Data();
-		parquet_schema = CreateParquetSchema();
-		if (!parquet_schema) return 1;
+	// carquet_schema_t *parquet_schema = nullptr;
+	// carquet_writer_t *parquet_writer = nullptr;
+	// if (result["parquet"].as<bool>()) {
+	// 	const std::string parquet_path = TString::Format(
+	// 		"%s/t0_%s%04d.par",
+	// 		particle_dir.c_str(),
+	// 		trigger_infix.c_str(),
+	// 		run
+	// 	).Data();
+	// 	parquet_schema = CreateParquetSchema();
+	// 	if (!parquet_schema) return 1;
 
-		carquet_error_t error{};
-		carquet_error_init(&error);
-		parquet_writer = carquet_writer_create(
-			parquet_path.c_str(), parquet_schema, nullptr, &error
-		);
-		if (!parquet_writer) {
-			std::cerr << "Error: Create parquet file " << parquet_path
-				<< " failed: " << error.message << ".\n";
-			carquet_schema_free(parquet_schema);
-			return 1;
-		}
-	}
+	// 	carquet_error_t error{};
+	// 	carquet_error_init(&error);
+	// 	parquet_writer = carquet_writer_create(
+	// 		parquet_path.c_str(), parquet_schema, nullptr, &error
+	// 	);
+	// 	if (!parquet_writer) {
+	// 		std::cerr << "Error: Create parquet file " << parquet_path
+	// 			<< " failed: " << error.message << ".\n";
+	// 		carquet_schema_free(parquet_schema);
+	// 		return 1;
+	// 	}
+	// }
 
 	const long long total = ipt->GetEntries();
 	long long last_percentage = -1;
@@ -365,13 +357,13 @@ int main(int argc, char **argv) {
 		}
 
 		opt.Fill();
-		if (parquet_writer && !WriteParquetRows(parquet_writer, input_event, output_event)) {
-			carquet_writer_abort(parquet_writer);
-			carquet_schema_free(parquet_schema);
-			opf.Close();
-			ipf.Close();
-			return 1;
-		}
+		// if (parquet_writer && !WriteParquetRows(parquet_writer, input_event, output_event)) {
+		// 	carquet_writer_abort(parquet_writer);
+		// 	carquet_schema_free(parquet_schema);
+		// 	opf.Close();
+		// 	ipf.Close();
+		// 	return 1;
+		// }
 	}
 	std::printf("\b\b\b\b100%%\n");
 
@@ -379,12 +371,12 @@ int main(int argc, char **argv) {
 	opt.Write();
 	opf.Close();
 	ipf.Close();
-	if (parquet_writer) {
-		if (!CheckCarquetStatus(carquet_writer_close(parquet_writer), "Close parquet file")) {
-			carquet_schema_free(parquet_schema);
-			return 1;
-		}
-		carquet_schema_free(parquet_schema);
-	}
+	// if (parquet_writer) {
+	// 	if (!CheckCarquetStatus(carquet_writer_close(parquet_writer), "Close parquet file")) {
+	// 		carquet_schema_free(parquet_schema);
+	// 		return 1;
+	// 	}
+	// 	carquet_schema_free(parquet_schema);
+	// }
 	return 0;
 }
