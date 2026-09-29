@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
 	TChain chain("tree");
 	int added_files = 0;
 	for (int current_run = run; current_run <= end_run; ++current_run) {
-		if (config.IsJumpRun(current_run)) continue;
+		if (config.IsSkipRun(current_run)) continue;
 		std::string path = TString::Format(
 			"%s/t0_%04d.root",
 			tele_dir.c_str(),

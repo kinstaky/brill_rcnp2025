@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
 	TChain chain_gagg("tree");
 	int added_runs = 0;
 	for (int current_run = run; current_run <= end_run; ++current_run) {
-		if (config.IsJumpRun(current_run)) continue;
+		if (config.IsSkipRun(current_run)) continue;
 		++added_runs;
 		chain_d2.Add(TString::Format(
 			"%s/t0d2_%04d.root",

@@ -1178,7 +1178,7 @@ int main(int argc, char **argv) {
 		return -3;
 	}
 	const int run = result["run"].as<int>();
-	if (config.IsJumpRun(run)) {
+	if (config.IsSkipRun(run)) {
 		std::cerr << "Info: Run " << run << " is jump run." << std::endl;
 		return -1;
 	}

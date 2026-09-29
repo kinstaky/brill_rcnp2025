@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
 	TChain gagg_chain("tree");
 	int added_files = 0;
 	for (int current_run = run; current_run <= end_run; ++current_run) {
-		if (config.IsJumpRun(current_run)) continue;
+		if (config.IsSkipRun(current_run)) continue;
 		std::string path = TString::Format(
 			"%s/t0d2_%04d.root",
 			match_dir.c_str(),
