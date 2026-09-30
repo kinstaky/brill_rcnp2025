@@ -34,6 +34,7 @@ struct ParticleCutInfo {
 struct GAGGStraightCut {
 	std::string particle;
 	brill::t0::GAGGStraightParameters param;
+	std::unique_ptr<brill::t0::GAGGCalibrationParameters> cali;
 	double min_ef;
 	double max_ef;
 	double max_gagg_energy;
@@ -151,29 +152,37 @@ int main(int argc, char **argv) {
 	}
 	std::map<std::string, GAGGStraightCut> gagg_cuts;
 	gagg_cuts.insert(std::make_pair<std::string, GAGGStraightCut>(
-		"12Be", {"12Be", {}, 121.08, 126.86, 90.0}
+		"12Be", {"12Be", {}, nullptr, 121.08, 126.86, 90.0}
 	));
 	gagg_cuts["12Be"].param.Read(cali_dir + "/gagg_straight_Be.txt");
+	gagg_cuts["12Be"].cali = std::make_unique<brill::t0::GAGGCalibrationParameters>(25);
+	if (gagg_cuts["12Be"].cali->Read(TString::Format(
+		"%s/gagg_layer1_%c_Be.txt",
+		cali_dir.c_str(),
+		run < 1079 ? 'a' : 'b'
+	).Data())) {
+		std::cerr << "Error: Failed to read gagg 12Be calibration parameters.\n";
+		return -1;
+	}
 	gagg_cuts.insert(std::make_pair<std::string, GAGGStraightCut>(
-		"4He", {"4He", {}, 35.2, 37.7, 80.0}
+		"4He", {"4He", {}, nullptr, 35.2, 37.7, 80.0}
 	));
 	gagg_cuts["4He"].param.Read(cali_dir + "/gagg_straight_4He.txt");
+	gagg_cuts["4He"].cali = std::make_unique<brill::t0::GAGGCalibrationParameters>(25);
+	if (gagg_cuts["4He"].cali->Read(TString::Format(
+		"%s/gagg_layer1_%c_4He.txt",
+		cali_dir.c_str(),
+		run < 1079 ? 'a' : 'b'
+	).Data())) {
+		std::cerr << "Error: Failed to read gagg 4He calibration parameters.\n";
+		return -1;
+	}
 
 
 	// load calibration parameters
 	brill::CalibrationParameters t0_cali(2);
 	if (t0_cali.Read(cali_dir + "/t0.txt")) {
 		std::cerr << "Error: Failed to read t0 calibration parameters.\n";
-		return -1;
-	}
-	brill::t0::GAGGCalibrationParameters gagg_cali(25);
-	TString gagg_cali_path = TString::Format(
-		"%s/gagg_layer1_%c_Be.txt",
-		cali_dir.c_str(),
-		run < 1079 ? 'a' : 'b'
-	);
-	if (gagg_cali.Read(gagg_cali_path.Data())) {
-		std::cerr << "Error: Failed to read gagg calibration parameters.\n";
 		return -1;
 	}
 
@@ -257,7 +266,6 @@ int main(int argc, char **argv) {
 					if (used_d2 & (1 << j)) break;
 					if (used_gagg & (1 << k)) continue;
 					if (gagg_event.index[k] >= 24) continue;
-					double gagg_energy = gagg_cali.CaliEnergy(gagg_event.index[k], gagg_event.energy[k]);
 					if (!brill::t0::IsInTrackWindow(
 						d2_event.front_strip[j],
 						d2_event.back_strip[j],
@@ -266,6 +274,7 @@ int main(int argc, char **argv) {
 					for (const auto &cut : d1d2_tail_cuts) {
 						if (!cut.cut->IsInside(d2_event.energy[j], d1_event.energy[i])) continue;
 						GAGGStraightCut &gagg_cut = gagg_cuts[cut.particle];
+						double gagg_energy = gagg_cut.cali->CaliEnergy(gagg_event.index[k], gagg_event.amplitude[k]);
 						double ef = gagg_cut.param.FixedEnergy(d2_energy, gagg_energy);
 						if (ef < gagg_cut.min_ef || ef > gagg_cut.max_ef || gagg_energy > gagg_cut.max_gagg_energy) continue;
 						t0_event.layer[num] = 3;
@@ -313,8 +322,8 @@ int main(int argc, char **argv) {
 					t0_event.flag[num] = 0x3;
 					t0_event.charge[num] = cut.charge;
 					t0_event.mass[num] = cut.mass;
-					t0_event.energy[num][0] = d1_event.energy[i];
-					t0_event.energy[num][1] = d2_event.energy[j];
+					t0_event.energy[num][0] = d1_energy;
+					t0_event.energy[num][1] = d2_energy;
 					t0_event.time[num][0] = d1_event.time[i];
 					t0_event.time[num][1] = d2_event.time[j];
 					brill::t0::GetPixelPosition(
