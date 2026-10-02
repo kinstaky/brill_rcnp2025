@@ -19,269 +19,6 @@
 #include "include/strip_combination.h"
 #include "include/t0_utils.h"
 
-inline bool AreStrips(
-	const int fs0,
-	const int fs1,
-	const int cfs0,
-	const int cfs1,
-	const bool has_order = false
-) {
-	return (
-		(fs0 == cfs0 && fs1 == cfs1) ||
-		(!has_order && fs0 == cfs1 && fs1 == cfs0)
-	);
-}
-
-
-/// @brief Get front strips combination
-/// @param[in] raw raw event
-/// @param[out] combinations found combinations
-void GetT0D1FrontCombinations(
-	const brill::SiliconDetectorConfig *detector,
-	const brill::DssdEvent &raw,
-	const brill::DssdNormalizeParameters &parameters,
-	const brill::T0D1ExtraNormalizeParameters &extra,
-	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
-	std::vector<std::unique_ptr<brill::StripCombination>> &combinations
-) {
-	combinations.clear();
-	for (int i = 0; i < raw.front_num; ++i) {
-		brill::StripInfo strip1 {
-			raw.front_strip[i],
-			raw.front_energy[i],
-			raw.front_time[i],
-			parameters.front_p0[raw.front_strip[i]],
-			parameters.front_p1[raw.front_strip[i]],
-			parameters.front_p2[raw.front_strip[i]],
-			parameters.front_p3[raw.front_strip[i]]
-		};
-		// piecewise
-		if (raw.front_strip[i] == 101) {
-			combinations.push_back(
-				std::make_unique<brill::PiecewiseStripCombination>(
-					1 << i,
-					strip1,
-					extra.piecewise,
-					detector->match_tolerance
-				)
-			);
-		} else {
-			// normal
-			combinations.push_back(
-				std::make_unique<brill::NormalStripCombination>(
-					1 << i,
-					strip1,
-					detector->match_tolerance
-				)
-			);
-		}
-		for (int j = i+1; j < raw.front_num; ++j) {
-			brill::StripInfo strip2 {
-				raw.front_strip[j],
-				raw.front_energy[j],
-				raw.front_time[j],
-				parameters.front_p0[raw.front_strip[j]],
-				parameters.front_p1[raw.front_strip[j]],
-				parameters.front_p2[raw.front_strip[j]],
-				parameters.front_p3[raw.front_strip[j]]
-			};
-			if (abs(raw.front_strip[i] - raw.front_strip[j]) == 1) {
-				// piecewise shared
-				if (raw.front_strip[i] == 101 || raw.front_strip[j] == 101) {
-					combinations.push_back(
-						std::make_unique<brill::PiecewiseSharedStripCombination>(
-							(1 << i) | (1 << j),
-							raw.front_strip[i] == 101 ? strip1 : strip2,
-							raw.front_strip[i] == 101 ? strip2 : strip1,
-							extra.piecewise,
-							detector->match_tolerance
-						)
-					);
-				} else {
-					// normal shared
-					combinations.push_back(
-						std::make_unique<brill::NormalSharedStripCombination>(
-							(1 << i) | (1 << j),
-							strip1,
-							strip2,
-							detector->match_tolerance
-						)
-					);
-				}
-				continue;
-			}
-			// broken adjacent
-			for (const auto &[name, pca] : pca_parameters) {
-				if (pca.side == 1) continue;
-				if (!AreStrips(
-					raw.front_strip[i], raw.front_strip[j],
-					pca.strips[0], pca.strips[1],
-					pca.has_order
-				)) continue;
-				combinations.push_back(
-					std::make_unique<brill::BrokenAdjacentStripCombination>(
-						(1 << i) | (1 << j),
-						raw.front_strip[i] == pca.strips[0] ? strip1 : strip2,
-						raw.front_strip[i] == pca.strips[0] ? strip2 : strip1,
-						pca.broken_strip,
-						pca.line,
-						pca.plane[0],
-						pca.plane[1],
-						pca.threshold[0],
-						pca.threshold[1],
-						pca.threshold[2]
-					)
-				);
-			}
-		}
-	}
-}
-
-/// @brief Get back strips combination
-/// @param[in] raw raw event
-/// @param[out] combinations found combinations
-void GetT0D1BackCombinations(
-	const brill::SiliconDetectorConfig *detector,
-	const brill::DssdEvent &raw,
-	const brill::DssdNormalizeParameters &parameters,
-	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
-	std::vector<std::unique_ptr<brill::StripCombination>> &combinations
-) {
-	combinations.clear();
-	// short strip
-	const brill::FullPCAParameter &short_pca = pca_parameters.at("bs104");
-	for (int i = 0; i < raw.back_num; ++i) {
-		brill::StripInfo strip1 {
-			raw.back_strip[i],
-			raw.back_energy[i],
-			raw.back_time[i],
-			parameters.back_p0[raw.back_strip[i]],
-			parameters.back_p1[raw.back_strip[i]],
-			parameters.back_p2[raw.back_strip[i]],
-			parameters.back_p3[raw.back_strip[i]]
-		};
-		// normal
-		if (raw.back_strip[i] != 104 && raw.back_strip[i] != 109) {
-			combinations.push_back(
-				std::make_unique<brill::NormalStripCombination>(
-					0x100 << i,
-					strip1,
-					detector->match_tolerance
-				)
-			);
-		}
-		for (int j = i+1; j < raw.back_num; ++j) {
-			brill::StripInfo strip2 {
-				raw.back_strip[j],
-				raw.back_energy[j],
-				raw.back_time[j],
-				parameters.back_p0[raw.back_strip[j]],
-				parameters.back_p1[raw.back_strip[j]],
-				parameters.back_p2[raw.back_strip[j]],
-				parameters.back_p3[raw.back_strip[j]]
-			};
-			if (abs(raw.back_strip[i] - raw.back_strip[j]) == 1) {
-				// normal shared
-				combinations.push_back(
-					std::make_unique<brill::NormalSharedStripCombination>(
-						(0x100 << i) | (0x100 << j),
-						strip1,
-						strip2,
-						detector->match_tolerance
-					)
-				);
-			}
-			if (AreStrips(
-				raw.back_strip[i], raw.back_strip[j],
-				short_pca.strips[0], short_pca.strips[1],
-				short_pca.has_order
-			)) {
-				combinations.push_back(
-					std::make_unique<brill::ShortStripCombination>(
-						(0x100 << i) | (0x100 << j),
-						raw.back_strip[i] == short_pca.strips[0] ? strip1 : strip2,
-						raw.back_strip[i] == short_pca.strips[1] ? strip2 : strip1,
-						short_pca.line,
-						short_pca.threshold[0]
-					)
-				);
-			}
-			for (int k = j+1; k < raw.back_num; ++k) {
-				brill::StripInfo strip3 {
-					raw.back_strip[k],
-					raw.back_energy[k],
-					raw.back_time[k],
-					parameters.back_p0[raw.back_strip[k]],
-					parameters.back_p1[raw.back_strip[k]],
-					parameters.back_p2[raw.back_strip[k]],
-					parameters.back_p3[raw.back_strip[k]]
-				};
-				if (
-					AreStrips(
-						raw.back_strip[i], raw.back_strip[j],
-						short_pca.strips[0], short_pca.strips[1],
-						short_pca.has_order
-					) && (
-						abs(raw.back_strip[k] - raw.back_strip[i]) == 1
-						|| abs(raw.back_strip[k] - raw.back_strip[j]) == 1
-					)
-				) {
-					combinations.push_back(
-						std::make_unique<brill::ShortSharedStripCombination>(
-							(0x100 << i) | (0x100 << j) | (0x100 << k),
-							raw.back_strip[i] == short_pca.strips[0] ? strip1 : strip2,
-							raw.back_strip[i] == short_pca.strips[0] ? strip2 : strip1,
-							strip3,
-							short_pca.line,
-							short_pca.threshold[0]
-						)
-					);
-				} else if (
-					AreStrips(
-						raw.back_strip[i], raw.back_strip[k],
-						short_pca.strips[0], short_pca.strips[1],
-						short_pca.has_order
-					) && (
-						abs(raw.back_strip[j] - raw.back_strip[i]) == 1
-						|| abs(raw.back_strip[j] - raw.back_strip[k]) == 1
-					)
-				) {
-					combinations.push_back(
-						std::make_unique<brill::ShortSharedStripCombination>(
-							(0x100 << i) | (0x100 << j) | (0x100 << k),
-							raw.back_strip[i] == short_pca.strips[0] ? strip1 : strip3,
-							raw.back_strip[i] == short_pca.strips[0] ? strip3 : strip1,
-							strip2,
-							short_pca.line,
-							short_pca.threshold[0]
-						)
-					);
-				} else if (
-					AreStrips(
-						raw.back_strip[j], raw.back_strip[k],
-						short_pca.strips[0], short_pca.strips[1],
-						short_pca.has_order
-					) && (
-						abs(raw.back_strip[i] - raw.back_strip[j]) == 1
-						|| abs(raw.back_strip[i] - raw.back_strip[k]) == 1
-					)
-				) {
-					combinations.push_back(
-						std::make_unique<brill::ShortSharedStripCombination>(
-							(0x100 << i) | (0x100 << j) | (0x100 << k),
-							raw.back_strip[j] == short_pca.strips[0] ? strip2 : strip3,
-							raw.back_strip[j] == short_pca.strips[0] ? strip3 : strip2,
-							strip1,
-							short_pca.line,
-							short_pca.threshold[0]
-						)
-					);
-				}
-			}
-		}
-	}
-}
-
 bool IsNormalStrip(const brill::EnergyGuess &guess) {
 	return guess.type == brill::StripType::Normal
 		|| guess.type == brill::StripType::Piecewise;
@@ -325,7 +62,7 @@ void MatchT0D1WithSpecialStrips(
 
 		// search for possible single side combination
 		std::vector<std::unique_ptr<brill::StripCombination>> front_comb, back_comb;
-		GetT0D1FrontCombinations(
+		brill::t0::GetT0D1FrontCombinations(
 			detector,
 			raw,
 			parameters,
@@ -333,7 +70,7 @@ void MatchT0D1WithSpecialStrips(
 			pca_parameters,
 			front_comb
 		);
-		GetT0D1BackCombinations(
+		brill::t0::GetT0D1BackCombinations(
 			detector,
 			raw,
 			parameters,
@@ -415,7 +152,7 @@ void MatchT0D1WithSpecialStrips(
 
 		// search for possible single side combination
 		std::vector<std::unique_ptr<brill::StripCombination>> front_comb, back_comb;
-		GetT0D1FrontCombinations(
+		brill::t0::GetT0D1FrontCombinations(
 			detector,
 			raw,
 			parameters,
@@ -423,7 +160,7 @@ void MatchT0D1WithSpecialStrips(
 			pca_parameters,
 			front_comb
 		);
-		GetT0D1BackCombinations(
+		brill::t0::GetT0D1BackCombinations(
 			detector,
 			raw,
 			parameters,
@@ -605,208 +342,6 @@ void MatchT0D1WithSpecialStrips(
 	rtree.Write();
 }
 
-/// @brief Get front strips combination
-/// @param[in] raw raw event
-/// @param[out] combinations found combinations
-void GetT0D2FrontCombinations(
-	const brill::SiliconDetectorConfig *detector,
-	const brill::DssdEvent &raw,
-	const brill::DssdNormalizeParameters &parameters,
-	const brill::T0D2ExtraNormalizeParameters &extra,
-	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
-	std::vector<std::unique_ptr<brill::StripCombination>> &combinations
-) {
-	combinations.clear();
-	for (int i = 0; i < raw.front_num; ++i) {
-		brill::StripInfo strip1 {
-			raw.front_strip[i],
-			raw.front_energy[i],
-			raw.front_time[i],
-			parameters.front_p0[raw.front_strip[i]],
-			parameters.front_p1[raw.front_strip[i]],
-			parameters.front_p2[raw.front_strip[i]],
-			parameters.front_p3[raw.front_strip[i]]
-		};
-		if (raw.front_strip[i] == 75) {
-			// piecewise
-			combinations.push_back(
-				std::make_unique<brill::PiecewiseStripCombination>(
-					1 << i,
-					strip1,
-					extra.pfs75,
-					detector->match_tolerance
-				)
-			);
-		} else if (raw.front_strip[i] == 99) {
-			// piecewise
-			combinations.push_back(
-				std::make_unique<brill::PiecewiseStripCombination>(
-					1 << i,
-					strip1,
-					extra.pfs99,
-					detector->match_tolerance
-				)
-			);
-		} else {
-			// normal
-			combinations.push_back(
-				std::make_unique<brill::NormalStripCombination>(
-					1 << i,
-					strip1,
-					detector->match_tolerance
-				)
-			);
-		}
-		for (int j = i+1; j < raw.front_num; ++j) {
-			brill::StripInfo strip2 {
-				raw.front_strip[j],
-				raw.front_energy[j],
-				raw.front_time[j],
-				parameters.front_p0[raw.front_strip[j]],
-				parameters.front_p1[raw.front_strip[j]],
-				parameters.front_p2[raw.front_strip[j]],
-				parameters.front_p3[raw.front_strip[j]]
-			};
-			if (abs(raw.front_strip[i] - raw.front_strip[j]) == 1) {
-				if (raw.front_strip[i] == 75 || raw.front_strip[j] == 75) {
-					combinations.push_back(
-						std::make_unique<brill::PiecewiseSharedStripCombination>(
-							(1 << i) | (1 << j),
-							raw.front_strip[i] == 75 ? strip1 : strip2,
-							raw.front_strip[i] == 75 ? strip2 : strip1,
-							extra.pfs75,
-							detector->match_tolerance
-						)
-					);
-				} else if (raw.front_strip[i] == 99 || raw.front_strip[j] == 99) {
-					combinations.push_back(
-						std::make_unique<brill::PiecewiseSharedStripCombination>(
-							(1 << i) | (1 << j),
-							raw.front_strip[i] == 99 ? strip1 : strip2,
-							raw.front_strip[i] == 99 ? strip2 : strip1,
-							extra.pfs99,
-							detector->match_tolerance
-						)
-					);
-				} else {
-					// normal shared
-					combinations.push_back(
-						std::make_unique<brill::NormalSharedStripCombination>(
-							(1 << i) | (1 << j),
-							strip1,
-							strip2,
-							detector->match_tolerance
-						)
-					);
-				}
-				continue;
-			}
-			// broken adjacent
-			for (const auto &[name, pca] : pca_parameters) {
-				if (pca.side == 1) continue;
-				if (!AreStrips(
-					raw.front_strip[i], raw.front_strip[j],
-					pca.strips[0], pca.strips[1],
-					pca.has_order
-				)) continue;
-				combinations.push_back(
-					std::make_unique<brill::BrokenAdjacentStripCombination>(
-						(1 << i) | (1 << j),
-						raw.front_strip[i] == pca.strips[0] ? strip1 : strip2,
-						raw.front_strip[i] == pca.strips[0] ? strip2 : strip1,
-						pca.broken_strip,
-						pca.line,
-						pca.plane[0],
-						pca.plane[1],
-						pca.threshold[0],
-						pca.threshold[1],
-						pca.threshold[2]
-					)
-				);
-			}
-		}
-	}
-}
-
-/// @brief Get back strips combination
-/// @param[in] raw raw event
-/// @param[out] combinations found combinations
-void GetT0D2BackCombinations(
-	const brill::SiliconDetectorConfig *detector,
-	const brill::DssdEvent &raw,
-	const brill::DssdNormalizeParameters &parameters,
-	const std::map<std::string, brill::FullPCAParameter> &pca_parameters,
-	std::vector<std::unique_ptr<brill::StripCombination>> &combinations
-) {
-	combinations.clear();
-	for (int i = 0; i < raw.back_num; ++i) {
-		brill::StripInfo strip1 {
-			raw.back_strip[i],
-			raw.back_energy[i],
-			raw.back_time[i],
-			parameters.back_p0[raw.back_strip[i]],
-			parameters.back_p1[raw.back_strip[i]],
-			parameters.back_p2[raw.back_strip[i]],
-			parameters.back_p3[raw.back_strip[i]]
-		};
-		// normal
-		if (raw.back_strip[i] != 104 && raw.back_strip[i] != 109) {
-			combinations.push_back(
-				std::make_unique<brill::NormalStripCombination>(
-					0x100 << i,
-					strip1,
-					detector->match_tolerance
-				)
-			);
-		}
-		for (int j = i+1; j < raw.back_num; ++j) {
-			brill::StripInfo strip2 {
-				raw.back_strip[j],
-				raw.back_energy[j],
-				raw.back_time[j],
-				parameters.back_p0[raw.back_strip[j]],
-				parameters.back_p1[raw.back_strip[j]],
-				parameters.back_p2[raw.back_strip[j]],
-				parameters.back_p3[raw.back_strip[j]]
-			};
-			if (abs(raw.back_strip[i] - raw.back_strip[j]) == 1) {
-				// normal shared
-				combinations.push_back(
-					std::make_unique<brill::NormalSharedStripCombination>(
-						(0x100 << i) | (0x100 << j),
-						strip1,
-						strip2,
-						detector->match_tolerance
-					)
-				);
-			}
-			// broken adjacent
-			for (const auto &[name, pca] : pca_parameters) {
-				if (pca.side == 0) continue;
-				if (!AreStrips(
-					raw.back_strip[i], raw.back_strip[j],
-					pca.strips[0], pca.strips[1],
-					pca.has_order
-				)) continue;
-				combinations.push_back(
-					std::make_unique<brill::BrokenAdjacentStripCombination>(
-						(0x100 << i) | (0x100 << j),
-						raw.back_strip[i] == pca.strips[0] ? strip1 : strip2,
-						raw.back_strip[i] == pca.strips[0] ? strip2 : strip1,
-						pca.broken_strip,
-						pca.line,
-						pca.plane[0],
-						pca.plane[1],
-						pca.threshold[0],
-						pca.threshold[1],
-						pca.threshold[2]
-					)
-				);
-			}
-		}
-	}
-}
-
 void MatchT0D2WithSpecialStrips(
 	const brill::SiliconDetectorConfig* detector,
 	TTree *ipt,
@@ -827,7 +362,7 @@ void MatchT0D2WithSpecialStrips(
 
 		// search for possible single side combination
 		std::vector<std::unique_ptr<brill::StripCombination>> front_comb, back_comb;
-		GetT0D2FrontCombinations(
+		brill::t0::GetT0D2FrontCombinations(
 			detector,
 			raw,
 			parameters,
@@ -835,7 +370,7 @@ void MatchT0D2WithSpecialStrips(
 			pca_parameters,
 			front_comb
 		);
-		GetT0D2BackCombinations(
+		brill::t0::GetT0D2BackCombinations(
 			detector,
 			raw,
 			parameters,
@@ -920,7 +455,7 @@ void MatchT0D2WithSpecialStrips(
 
 		// search for possible single side combination
 		std::vector<std::unique_ptr<brill::StripCombination>> front_comb, back_comb;
-		GetT0D2FrontCombinations(
+		brill::t0::GetT0D2FrontCombinations(
 			detector,
 			raw,
 			parameters,
@@ -928,7 +463,7 @@ void MatchT0D2WithSpecialStrips(
 			pca_parameters,
 			front_comb
 		);
-		GetT0D2BackCombinations(
+		brill::t0::GetT0D2BackCombinations(
 			detector,
 			raw,
 			parameters,
@@ -1188,23 +723,6 @@ int main(int argc, char **argv) {
 		{"t0d1", {"fs50", "fs94", "fs120"}},
 		{"t0d2", {"fs2", "fs1819", "fs70", "bs32a", "bs32b", "bs32c", "bs36", "bs48", "bs68"}},
 	};
-	std::map<std::string, brill::FullPCAParameter> t0d1_pca = {
-		{"fs50", {0, {49, 51}, 50, false, {}, {{}, {}}, {400.0, 400.0, 400.0}}},
-		{"fs94", {0, {93, 95}, 94, false, {}, {{}, {}}, {600.0, 400.0, 400.0}}},
-		{"fs120", {0, {119, 121}, 120, false, {}, {{}, {}}, {400.0, 400.0, 400.0}}},
-	};
-	std::map<std::string, brill::FullPCAParameter> t0d2_pca = {
-		{"fs2", {0, {1, 3}, 2, false, {}, {{}, {}}, {200.0, 600.0, 600.0}}},
-		{"fs1819", {0, {17, 20}, 18, false, {}, {{}, {}}, {300.0, 300.0, 200.0}}},
-		{"fs70", {0, {69, 71}, 70, false, {}, {{}, {}}, {300.0, 300.0, 300.0}}},
-		// {"bs0", {1, {1, 127}, 0, false, {}, {{}, {}}, {300.0, 300.0, 300.0}}},
-		{"bs32a", {1, {31, 33}, 32, true, {}, {{}, {}}, {400.0, 500.0, 600.0}}},
-		{"bs32b", {1, {31, 34}, 32, true, {}, {{}, {}}, {500.0, 500.0, 500.0}}},
-		{"bs32c", {1, {34, 31}, 32, true, {}, {{}, {}}, {500.0, 500.0, 600.0}}},
-		{"bs36", {1, {35, 37}, 36, false, {}, {{}, {}}, {600.0, 600.0, 600.0}}},
-		{"bs48", {1, {47, 49}, 48, false, {}, {{}, {}}, {600.0, 700.0, 700.0}}},
-		{"bs68", {1, {67, 69}, 68, false, {}, {{}, {}}, {500.0, 600.0, 600.0}}},
-	};
 
 	// apply normalize
 	for (const auto &detector : detectors) {
@@ -1282,29 +800,33 @@ int main(int argc, char **argv) {
 				std::cerr << "Error: Read T0D1 extra normalize parameters failed.\n";
 				return -4;
 			}
-			// reorganize extra PCA parameters
-			for (auto &[name, pca] : t0d1_pca) {
-				brill::PCAParameter line_pca = extra_parameters.pca.at(name);
-				brill::PCAParameter plane0_pca = extra_parameters.pca.at(name + "p0");
-				brill::PCAParameter plane1_pca = extra_parameters.pca.at(name + "p1");
+			std::map<std::string, brill::FullPCAParameter> pca_parameters = {
+				{"fs50", {0, {49, 51}, 50, false, {}, {{}, {}}, {400.0, 400.0, 400.0}}},
+				{"fs94", {0, {93, 95}, 94, false, {}, {{}, {}}, {600.0, 400.0, 400.0}}},
+				{"fs120", {0, {119, 121}, 120, false, {}, {{}, {}}, {400.0, 400.0, 400.0}}},
+			};
+			for (auto &[name, pca] : pca_parameters) {
+				const auto &line_pca = extra_parameters.pca.at(name);
+				const auto &plane0_pca = extra_parameters.pca.at(name + "p0");
+				const auto &plane1_pca = extra_parameters.pca.at(name + "p1");
 				pca.line = brill::Line3D {line_pca.mean, line_pca.direction};
 				pca.plane[0] = brill::Plane {plane0_pca.mean, plane0_pca.direction};
 				pca.plane[1] = brill::Plane {plane1_pca.mean, plane1_pca.direction};
 			}
-			const brill::PCAParameter &bs104_pca = extra_parameters.pca.at("bs104");
-			t0d1_pca.insert(std::make_pair("bs104", brill::FullPCAParameter {
+			const auto &bs104_pca = extra_parameters.pca.at("bs104");
+			pca_parameters.emplace("bs104", brill::FullPCAParameter {
 				1, {104, 109}, 104, false,
 				{bs104_pca.mean, bs104_pca.direction},
 				{{}, {}},
 				{500.0, 0.0, 0.0}
-			}));
+			});
 			MatchT0D1WithSpecialStrips(
 				detector_config,
 				ipt,
 				raw_event,
 				parameters,
 				extra_parameters,
-				t0d1_pca,
+				pca_parameters,
 				single_entry
 			);
 		} else if (detector == "t0d2") {
@@ -1313,11 +835,21 @@ int main(int argc, char **argv) {
 				std::cerr << "Error: Read T0D2 extra normalize parameters failed.\n";
 				return -4;
 			}
-			// reorganize extra PCA parameters
-			for (auto &[name, pca] : t0d2_pca) {
-				brill::PCAParameter line_pca = extra_parameters.pca.at(name);
-				brill::PCAParameter plane0_pca = extra_parameters.pca.at(name + "p0");
-				brill::PCAParameter plane1_pca = extra_parameters.pca.at(name + "p1");
+			std::map<std::string, brill::FullPCAParameter> pca_parameters = {
+				{"fs2", {0, {1, 3}, 2, false, {}, {{}, {}}, {200.0, 600.0, 600.0}}},
+				{"fs1819", {0, {17, 20}, 18, false, {}, {{}, {}}, {300.0, 300.0, 200.0}}},
+				{"fs70", {0, {69, 71}, 70, false, {}, {{}, {}}, {300.0, 300.0, 300.0}}},
+				{"bs32a", {1, {31, 33}, 32, true, {}, {{}, {}}, {400.0, 500.0, 600.0}}},
+				{"bs32b", {1, {31, 34}, 32, true, {}, {{}, {}}, {500.0, 500.0, 500.0}}},
+				{"bs32c", {1, {34, 31}, 32, true, {}, {{}, {}}, {500.0, 500.0, 600.0}}},
+				{"bs36", {1, {35, 37}, 36, false, {}, {{}, {}}, {600.0, 600.0, 600.0}}},
+				{"bs48", {1, {47, 49}, 48, false, {}, {{}, {}}, {600.0, 700.0, 700.0}}},
+				{"bs68", {1, {67, 69}, 68, false, {}, {{}, {}}, {500.0, 600.0, 600.0}}},
+			};
+			for (auto &[name, pca] : pca_parameters) {
+				const auto &line_pca = extra_parameters.pca.at(name);
+				const auto &plane0_pca = extra_parameters.pca.at(name + "p0");
+				const auto &plane1_pca = extra_parameters.pca.at(name + "p1");
 				pca.line = brill::Line3D {line_pca.mean, line_pca.direction};
 				pca.plane[0] = brill::Plane {plane0_pca.mean, plane0_pca.direction};
 				pca.plane[1] = brill::Plane {plane1_pca.mean, plane1_pca.direction};
@@ -1328,7 +860,7 @@ int main(int argc, char **argv) {
 				raw_event,
 				parameters,
 				extra_parameters,
-				t0d2_pca,
+				pca_parameters,
 				single_entry
 			);
 		}

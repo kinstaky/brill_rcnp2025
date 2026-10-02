@@ -2,10 +2,94 @@
 
 #include <cmath>
 #include "include/config.h"
+#include "include/pca.h"
+#include "include/strip_combination.h"
+#include "include/event/ingot/dssd_event.h"
+#include "include/t0/dssd.h"
 
 namespace brill::t0 {
 
 constexpr int kMaxGAGG = 64;
+
+/// @brief Check whether two strips are the specified ones
+/// @param[in] fs0 front strip 0
+/// @param[in] fs1 front strip 1
+/// @param[in] cfs0 candidate front strip 0
+/// @param[in] cfs1 candidate front strip 1
+/// @param[in] has_order whether to check the order
+inline bool AreStrips(
+	const int fs0,
+	const int fs1,
+	const int cfs0,
+	const int cfs1,
+	const bool has_order = false
+) {
+	return (
+		(fs0 == cfs0 && fs1 == cfs1) ||
+		(!has_order && fs0 == cfs1 && fs1 == cfs0)
+	);
+}
+
+
+/// @brief Get T0D1 front strips combination
+/// @param[in] detector detector config
+/// @param[in] raw raw event
+/// @param[in] parameters normalization parameters
+/// @param[in] extra extra normalization parameters
+/// @param[in] pca_parameters parsed PCA parameters
+/// @param[out] combinations found combinations
+void GetT0D1FrontCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const T0D1ExtraNormalizeParameters &extra,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+);
+
+/// @brief Get T0D1 back strips combination
+/// @param[in] detector detector config
+/// @param[in] raw raw event
+/// @param[in] parameters normalization parameters
+/// @param[in] pca_parameters parsed PCA parameters
+/// @param[out] combinations found combinations
+void GetT0D1BackCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+);
+
+/// @brief Get T0D2 front strips combination
+/// @param[in] detector detector config
+/// @param[in] raw raw event
+/// @param[in] parameters normalization parameters
+/// @param[in] extra extra normalization parameters
+/// @param[in] pca_parameters parsed PCA parameters
+/// @param[out] combinations found combinations
+void GetT0D2FrontCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const T0D2ExtraNormalizeParameters &extra,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+);
+
+/// @brief Get T0D2 back strips combination
+/// @param[in] detector detector config
+/// @param[in] raw raw event
+/// @param[in] parameters normalization parameters
+/// @param[in] pca_parameters parsed PCA parameters
+/// @param[out] combinations found combinations
+void GetT0D2BackCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+);
 
 /// @brief Check whether strips in D1D2 are in window
 /// @param[inout] d1fs D1 front strip, output corrected result

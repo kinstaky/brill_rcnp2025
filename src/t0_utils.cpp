@@ -8,6 +8,448 @@
 
 namespace brill::t0 {
 
+void GetT0D1FrontCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const T0D1ExtraNormalizeParameters &extra,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+) {
+	combinations.clear();
+	for (int i = 0; i < raw.front_num; ++i) {
+		brill::StripInfo strip1 {
+			raw.front_strip[i],
+			raw.front_energy[i],
+			raw.front_time[i],
+			parameters.front_p0[raw.front_strip[i]],
+			parameters.front_p1[raw.front_strip[i]],
+			parameters.front_p2[raw.front_strip[i]],
+			parameters.front_p3[raw.front_strip[i]]
+		};
+		// piecewise
+		if (raw.front_strip[i] == 101) {
+			combinations.push_back(
+				std::make_unique<brill::PiecewiseStripCombination>(
+					1 << i,
+					strip1,
+					extra.piecewise,
+					detector->match_tolerance
+				)
+			);
+		} else {
+			// normal
+			combinations.push_back(
+				std::make_unique<brill::NormalStripCombination>(
+					1 << i,
+					strip1,
+					detector->match_tolerance
+				)
+			);
+		}
+		for (int j = i+1; j < raw.front_num; ++j) {
+			brill::StripInfo strip2 {
+				raw.front_strip[j],
+				raw.front_energy[j],
+				raw.front_time[j],
+				parameters.front_p0[raw.front_strip[j]],
+				parameters.front_p1[raw.front_strip[j]],
+				parameters.front_p2[raw.front_strip[j]],
+				parameters.front_p3[raw.front_strip[j]]
+			};
+			if (abs(raw.front_strip[i] - raw.front_strip[j]) == 1) {
+				// piecewise shared
+				if (raw.front_strip[i] == 101 || raw.front_strip[j] == 101) {
+					combinations.push_back(
+						std::make_unique<brill::PiecewiseSharedStripCombination>(
+							(1 << i) | (1 << j),
+							raw.front_strip[i] == 101 ? strip1 : strip2,
+							raw.front_strip[i] == 101 ? strip2 : strip1,
+							extra.piecewise,
+							detector->match_tolerance
+						)
+					);
+				} else {
+					// normal shared
+					combinations.push_back(
+						std::make_unique<brill::NormalSharedStripCombination>(
+							(1 << i) | (1 << j),
+							strip1,
+							strip2,
+							detector->match_tolerance
+						)
+					);
+				}
+				continue;
+			}
+			// broken adjacent
+			for (const auto &[name, pca] : pca_parameters) {
+				if (pca.side == 1) continue;
+				if (!AreStrips(
+					raw.front_strip[i], raw.front_strip[j],
+					pca.strips[0], pca.strips[1],
+					pca.has_order
+				)) continue;
+				combinations.push_back(
+					std::make_unique<brill::BrokenAdjacentStripCombination>(
+						(1 << i) | (1 << j),
+						raw.front_strip[i] == pca.strips[0] ? strip1 : strip2,
+						raw.front_strip[i] == pca.strips[0] ? strip2 : strip1,
+						pca.broken_strip,
+						pca.line,
+						pca.plane[0],
+						pca.plane[1],
+						pca.threshold[0],
+						pca.threshold[1],
+						pca.threshold[2]
+					)
+				);
+			}
+		}
+	}
+}
+
+/// @brief Get back strips combination
+/// @param[in] raw raw event
+/// @param[out] combinations found combinations
+void GetT0D1BackCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+) {
+	combinations.clear();
+	// short strip
+	const FullPCAParameter &short_pca = pca_parameters.at("bs104");
+	for (int i = 0; i < raw.back_num; ++i) {
+		brill::StripInfo strip1 {
+			raw.back_strip[i],
+			raw.back_energy[i],
+			raw.back_time[i],
+			parameters.back_p0[raw.back_strip[i]],
+			parameters.back_p1[raw.back_strip[i]],
+			parameters.back_p2[raw.back_strip[i]],
+			parameters.back_p3[raw.back_strip[i]]
+		};
+		// normal
+		if (raw.back_strip[i] != 104 && raw.back_strip[i] != 109) {
+			combinations.push_back(
+				std::make_unique<brill::NormalStripCombination>(
+					0x100 << i,
+					strip1,
+					detector->match_tolerance
+				)
+			);
+		}
+		for (int j = i+1; j < raw.back_num; ++j) {
+			brill::StripInfo strip2 {
+				raw.back_strip[j],
+				raw.back_energy[j],
+				raw.back_time[j],
+				parameters.back_p0[raw.back_strip[j]],
+				parameters.back_p1[raw.back_strip[j]],
+				parameters.back_p2[raw.back_strip[j]],
+				parameters.back_p3[raw.back_strip[j]]
+			};
+			if (abs(raw.back_strip[i] - raw.back_strip[j]) == 1) {
+				// normal shared
+				combinations.push_back(
+					std::make_unique<brill::NormalSharedStripCombination>(
+						(0x100 << i) | (0x100 << j),
+						strip1,
+						strip2,
+						detector->match_tolerance
+					)
+				);
+			}
+			if (AreStrips(
+				raw.back_strip[i], raw.back_strip[j],
+				short_pca.strips[0], short_pca.strips[1],
+				short_pca.has_order
+			)) {
+				combinations.push_back(
+					std::make_unique<brill::ShortStripCombination>(
+						(0x100 << i) | (0x100 << j),
+						raw.back_strip[i] == short_pca.strips[0] ? strip1 : strip2,
+						raw.back_strip[i] == short_pca.strips[1] ? strip2 : strip1,
+						short_pca.line,
+						short_pca.threshold[0]
+					)
+				);
+			}
+			for (int k = j+1; k < raw.back_num; ++k) {
+				brill::StripInfo strip3 {
+					raw.back_strip[k],
+					raw.back_energy[k],
+					raw.back_time[k],
+					parameters.back_p0[raw.back_strip[k]],
+					parameters.back_p1[raw.back_strip[k]],
+					parameters.back_p2[raw.back_strip[k]],
+					parameters.back_p3[raw.back_strip[k]]
+				};
+				if (
+					AreStrips(
+						raw.back_strip[i], raw.back_strip[j],
+						short_pca.strips[0], short_pca.strips[1],
+						short_pca.has_order
+					) && (
+						abs(raw.back_strip[k] - raw.back_strip[i]) == 1
+						|| abs(raw.back_strip[k] - raw.back_strip[j]) == 1
+					)
+				) {
+					combinations.push_back(
+						std::make_unique<brill::ShortSharedStripCombination>(
+							(0x100 << i) | (0x100 << j) | (0x100 << k),
+							raw.back_strip[i] == short_pca.strips[0] ? strip1 : strip2,
+							raw.back_strip[i] == short_pca.strips[0] ? strip2 : strip1,
+							strip3,
+							short_pca.line,
+							short_pca.threshold[0]
+						)
+					);
+				} else if (
+					AreStrips(
+						raw.back_strip[i], raw.back_strip[k],
+						short_pca.strips[0], short_pca.strips[1],
+						short_pca.has_order
+					) && (
+						abs(raw.back_strip[j] - raw.back_strip[i]) == 1
+						|| abs(raw.back_strip[j] - raw.back_strip[k]) == 1
+					)
+				) {
+					combinations.push_back(
+						std::make_unique<brill::ShortSharedStripCombination>(
+							(0x100 << i) | (0x100 << j) | (0x100 << k),
+							raw.back_strip[i] == short_pca.strips[0] ? strip1 : strip3,
+							raw.back_strip[i] == short_pca.strips[0] ? strip3 : strip1,
+							strip2,
+							short_pca.line,
+							short_pca.threshold[0]
+						)
+					);
+				} else if (
+					AreStrips(
+						raw.back_strip[j], raw.back_strip[k],
+						short_pca.strips[0], short_pca.strips[1],
+						short_pca.has_order
+					) && (
+						abs(raw.back_strip[i] - raw.back_strip[j]) == 1
+						|| abs(raw.back_strip[i] - raw.back_strip[k]) == 1
+					)
+				) {
+					combinations.push_back(
+						std::make_unique<brill::ShortSharedStripCombination>(
+							(0x100 << i) | (0x100 << j) | (0x100 << k),
+							raw.back_strip[j] == short_pca.strips[0] ? strip2 : strip3,
+							raw.back_strip[j] == short_pca.strips[0] ? strip3 : strip2,
+							strip1,
+							short_pca.line,
+							short_pca.threshold[0]
+						)
+					);
+				}
+			}
+		}
+	}
+}
+
+void GetT0D2FrontCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const T0D2ExtraNormalizeParameters &extra,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+) {
+	combinations.clear();
+	for (int i = 0; i < raw.front_num; ++i) {
+		StripInfo strip1 {
+			raw.front_strip[i],
+			raw.front_energy[i],
+			raw.front_time[i],
+			parameters.front_p0[raw.front_strip[i]],
+			parameters.front_p1[raw.front_strip[i]],
+			parameters.front_p2[raw.front_strip[i]],
+			parameters.front_p3[raw.front_strip[i]]
+		};
+		if (raw.front_strip[i] == 75) {
+			// piecewise
+			combinations.push_back(
+				std::make_unique<PiecewiseStripCombination>(
+					1 << i,
+					strip1,
+					extra.pfs75,
+					detector->match_tolerance
+				)
+			);
+		} else if (raw.front_strip[i] == 99) {
+			// piecewise
+			combinations.push_back(
+				std::make_unique<brill::PiecewiseStripCombination>(
+					1 << i,
+					strip1,
+					extra.pfs99,
+					detector->match_tolerance
+				)
+			);
+		} else {
+			// normal
+			combinations.push_back(
+				std::make_unique<brill::NormalStripCombination>(
+					1 << i,
+					strip1,
+					detector->match_tolerance
+				)
+			);
+		}
+		for (int j = i+1; j < raw.front_num; ++j) {
+			brill::StripInfo strip2 {
+				raw.front_strip[j],
+				raw.front_energy[j],
+				raw.front_time[j],
+				parameters.front_p0[raw.front_strip[j]],
+				parameters.front_p1[raw.front_strip[j]],
+				parameters.front_p2[raw.front_strip[j]],
+				parameters.front_p3[raw.front_strip[j]]
+			};
+			if (abs(raw.front_strip[i] - raw.front_strip[j]) == 1) {
+				if (raw.front_strip[i] == 75 || raw.front_strip[j] == 75) {
+					combinations.push_back(
+						std::make_unique<brill::PiecewiseSharedStripCombination>(
+							(1 << i) | (1 << j),
+							raw.front_strip[i] == 75 ? strip1 : strip2,
+							raw.front_strip[i] == 75 ? strip2 : strip1,
+							extra.pfs75,
+							detector->match_tolerance
+						)
+					);
+				} else if (raw.front_strip[i] == 99 || raw.front_strip[j] == 99) {
+					combinations.push_back(
+						std::make_unique<brill::PiecewiseSharedStripCombination>(
+							(1 << i) | (1 << j),
+							raw.front_strip[i] == 99 ? strip1 : strip2,
+							raw.front_strip[i] == 99 ? strip2 : strip1,
+							extra.pfs99,
+							detector->match_tolerance
+						)
+					);
+				} else {
+					// normal shared
+					combinations.push_back(
+						std::make_unique<brill::NormalSharedStripCombination>(
+							(1 << i) | (1 << j),
+							strip1,
+							strip2,
+							detector->match_tolerance
+						)
+					);
+				}
+				continue;
+			}
+			// broken adjacent
+			for (const auto &[name, pca] : pca_parameters) {
+				if (pca.side == 1) continue;
+				if (!AreStrips(
+					raw.front_strip[i], raw.front_strip[j],
+					pca.strips[0], pca.strips[1],
+					pca.has_order
+				)) continue;
+				combinations.push_back(
+					std::make_unique<brill::BrokenAdjacentStripCombination>(
+						(1 << i) | (1 << j),
+						raw.front_strip[i] == pca.strips[0] ? strip1 : strip2,
+						raw.front_strip[i] == pca.strips[0] ? strip2 : strip1,
+						pca.broken_strip,
+						pca.line,
+						pca.plane[0],
+						pca.plane[1],
+						pca.threshold[0],
+						pca.threshold[1],
+						pca.threshold[2]
+					)
+				);
+			}
+		}
+	}
+}
+
+void GetT0D2BackCombinations(
+	const SiliconDetectorConfig *detector,
+	const DssdEvent &raw,
+	const DssdNormalizeParameters &parameters,
+	const std::map<std::string, FullPCAParameter> &pca_parameters,
+	std::vector<std::unique_ptr<StripCombination>> &combinations
+) {
+	combinations.clear();
+	for (int i = 0; i < raw.back_num; ++i) {
+		brill::StripInfo strip1 {
+			raw.back_strip[i],
+			raw.back_energy[i],
+			raw.back_time[i],
+			parameters.back_p0[raw.back_strip[i]],
+			parameters.back_p1[raw.back_strip[i]],
+			parameters.back_p2[raw.back_strip[i]],
+			parameters.back_p3[raw.back_strip[i]]
+		};
+		// normal
+		if (raw.back_strip[i] != 104 && raw.back_strip[i] != 109) {
+			combinations.push_back(
+				std::make_unique<brill::NormalStripCombination>(
+					0x100 << i,
+					strip1,
+					detector->match_tolerance
+				)
+			);
+		}
+		for (int j = i+1; j < raw.back_num; ++j) {
+			brill::StripInfo strip2 {
+				raw.back_strip[j],
+				raw.back_energy[j],
+				raw.back_time[j],
+				parameters.back_p0[raw.back_strip[j]],
+				parameters.back_p1[raw.back_strip[j]],
+				parameters.back_p2[raw.back_strip[j]],
+				parameters.back_p3[raw.back_strip[j]]
+			};
+			if (abs(raw.back_strip[i] - raw.back_strip[j]) == 1) {
+				// normal shared
+				combinations.push_back(
+					std::make_unique<brill::NormalSharedStripCombination>(
+						(0x100 << i) | (0x100 << j),
+						strip1,
+						strip2,
+						detector->match_tolerance
+					)
+				);
+			}
+			// broken adjacent
+			for (const auto &[name, pca] : pca_parameters) {
+				if (pca.side == 0) continue;
+				if (!AreStrips(
+					raw.back_strip[i], raw.back_strip[j],
+					pca.strips[0], pca.strips[1],
+					pca.has_order
+				)) continue;
+				combinations.push_back(
+					std::make_unique<brill::BrokenAdjacentStripCombination>(
+						(0x100 << i) | (0x100 << j),
+						raw.back_strip[i] == pca.strips[0] ? strip1 : strip2,
+						raw.back_strip[i] == pca.strips[0] ? strip2 : strip1,
+						pca.broken_strip,
+						pca.line,
+						pca.plane[0],
+						pca.plane[1],
+						pca.threshold[0],
+						pca.threshold[1],
+						pca.threshold[2]
+					)
+				);
+			}
+		}
+	}
+}
+
 bool IsInTrackWindow(
 	int &d1fs,
 	int &d1bs,

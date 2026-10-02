@@ -18,7 +18,7 @@ target_link_libraries(
 add_executable(match_dssd match_dssd.cpp)
 target_link_libraries(
 	match_dssd PRIVATE
-	brill::core brill::t0 t0_utils ROOT::Graf Eigen3::Eigen normalize_extra strip_combination
+	brill::core brill::t0 t0_utils ROOT::Graf
 )
 
 add_executable(calibrate_t0 calibrate_t0.cpp)
