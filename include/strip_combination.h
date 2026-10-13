@@ -9,11 +9,11 @@
 namespace brill {
 
 namespace StripType {
-	int Normal = 0;
-	int ChargeShared = 1;
-	int BrokenAdjacent = 2;
-	int Short = 4;
-	int Piecewise = 8;
+	constexpr int Normal = 0;
+	constexpr int ChargeShared = 1;
+	constexpr int BrokenAdjacent = 2;
+	constexpr int Short = 4;
+	constexpr int Piecewise = 8;
 }
 
 struct MatchResult {
